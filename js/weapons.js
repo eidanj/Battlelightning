@@ -233,7 +233,9 @@ export class Weapons {
       if (!a.alive || a.team === m.team) continue;
       const d = a.fm.pos.distanceTo(m.pos);
       if (d < MISSILE.blast + a.radius) {
-        const k = clamp(1 - (d - a.radius * 0.5) / MISSILE.blast, 0.15, 1);
+        // full effect within ~4 m of the airframe, half at ~14 m, never below a quarter inside the blast
+        const gap = Math.max(0, d - a.radius * 0.6);
+        const k = clamp(1 - Math.max(0, gap - 4) / 20, 0.25, 1);
         // blast + fragments spread over components, worst on the side facing the warhead
         const local = _a.copy(m.pos).sub(a.fm.pos).applyQuaternion(_q.copy(a.fm.quat).invert());
         const side = local.x > 0 ? 'wingR' : 'wingL';
@@ -253,19 +255,22 @@ export class Weapons {
 
   dropFlare(owner) {
     const G = this.game, q = owner.fm.quat;
+    let decoy = null;
     for (let s = -1; s <= 1; s += 2) {
       const pos = owner.fm.pos.clone().addScaledVector(_a.set(s * 0.8, -0.8, 2).applyQuaternion(q), 1);
       const vel = owner.fm.vel.clone().multiplyScalar(0.85).add(_b.set(s * 12, -14, 10).applyQuaternion(q));
       const f = { isFlare: true, pos, vel, t: 0, life: 4.5, team: owner.team, owner, trail: G.fx.trail({ w0: 0.3, w1: 3.5, life: 4, alpha: 0.5, color: 0xdedede, max: 70, interval: 0.06 }) };
       this.flares.push(f);
-      // decoy: each missile chasing this aircraft may be seduced
-      for (const m of owner.incoming || []) {
-        if (m.target !== owner || m.lost) continue;
-        const toMissile = _c.copy(m.pos).sub(owner.fm.pos).normalize();
-        const aspect = toMissile.dot(_d.set(0, 0, 1).applyQuaternion(q)); // from behind = harder to decoy
-        const p = 0.16 + 0.22 * (1 - Math.max(0, aspect)) + (owner.fm.ab > 0.1 ? -0.08 : 0.04);
-        if (Math.random() < p) { m.target = f; }
-      }
+      if (s < 0) decoy = f;
+    }
+    // decoy: one roll per salvo for each missile chasing this aircraft. Harder from behind and with the
+    // afterburner lit; a missile that has seen through two salvos is locked on for good.
+    for (const m of owner.incoming || []) {
+      if (m.target !== owner || m.lost || (m.resisted || 0) >= 2) continue;
+      const toMissile = _c.copy(m.pos).sub(owner.fm.pos).normalize();
+      const aspect = toMissile.dot(_d.set(0, 0, 1).applyQuaternion(q)); // 1 = missile directly behind
+      const p = 0.1 + 0.16 * (1 - Math.max(0, aspect)) + (owner.fm.ab > 0.1 ? -0.05 : 0.03);
+      if (Math.random() < p) m.target = decoy; else m.resisted = (m.resisted || 0) + 1;
     }
     G.audio?.flare(owner.isPlayer);
   }

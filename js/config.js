@@ -128,7 +128,7 @@ export const AIRCRAFT = {
       rollRate: 155, pitchK: 15, pitchD: 4.6, yawK: 9, yawD: 3.4, swing: true },
     engine: { thrustMil: 142000, thrustAB: 232000, spool: 2.4, lapse: 0.0, twin: true },
     inertia: [330000, 520000, 170000], // pitch(x), yaw(y), roll(z) kg m2
-    gun: { name: 'M61 Vulcan 20 mm', rpm: 4200, box: 225, boxes: 3, vel: 1030, dmg: 16, spread: 0.0016, reload: 3.6 },
+    gun: { name: 'M61 Vulcan 20 mm', rpm: 4200, box: 225, boxes: 3, vel: 1030, dmg: 34, spread: 0.0016, reload: 3.6 },
     missile: { name: 'AIM-9 IR', lockRange: 7200, lockTime: 1.0, cone: 7 },
     flares: 30,
     hp: { fuselage: 420, wingL: 230, wingR: 230, engine: 270, tail: 190 }, armor: 1.0,
@@ -150,7 +150,7 @@ export const AIRCRAFT = {
       rollRate: 210, pitchK: 17, pitchD: 4.8, yawK: 10, yawD: 3.4 },
     engine: { thrustMil: 98000, thrustAB: 158000, spool: 1.9, lapse: 0.0, twin: true },
     inertia: [150000, 220000, 42000],
-    gun: { name: 'M61A1 20 mm', rpm: 4000, box: 190, boxes: 3, vel: 1030, dmg: 16, spread: 0.0014, reload: 3.2 },
+    gun: { name: 'M61A1 20 mm', rpm: 4000, box: 190, boxes: 3, vel: 1030, dmg: 34, spread: 0.0014, reload: 3.2 },
     missile: { name: 'AIM-9 IR', lockRange: 5200, lockTime: 1.0, cone: 8 },
     flares: 36,
     hp: { fuselage: 400, wingL: 200, wingR: 200, engine: 250, tail: 170 }, armor: 1.12,
@@ -172,7 +172,7 @@ export const AIRCRAFT = {
       rollRate: 260, pitchK: 19, pitchD: 5.2, yawK: 10, yawD: 3.6 },
     engine: { thrustMil: 77000, thrustAB: 129000, spool: 1.45, lapse: 0.0, twin: false },
     inertia: [78000, 92000, 14000],
-    gun: { name: 'M61A1 20 mm', rpm: 4800, box: 170, boxes: 3, vel: 1030, dmg: 15, spread: 0.0014, reload: 3.0 },
+    gun: { name: 'M61A1 20 mm', rpm: 4800, box: 170, boxes: 3, vel: 1030, dmg: 33, spread: 0.0014, reload: 3.0 },
     missile: { name: 'AIM-9 IR', lockRange: 4300, lockTime: 1.0, cone: 8 },
     flares: 30,
     hp: { fuselage: 300, wingL: 160, wingR: 160, engine: 165, tail: 140 }, armor: 0.92,
@@ -194,7 +194,7 @@ export const AIRCRAFT = {
       rollRate: 170, pitchK: 16, pitchD: 4.4, yawK: 9, yawD: 3.2 },
     engine: { thrustMil: 152000, thrustAB: 246000, spool: 2.0, lapse: 0.0, twin: true },
     inertia: [300000, 460000, 100000],
-    gun: { name: 'GSh-30-1 30 mm', rpm: 1800, box: 75, boxes: 2, vel: 900, dmg: 44, spread: 0.0016, reload: 4.0 },
+    gun: { name: 'GSh-30-1 30 mm', rpm: 1800, box: 75, boxes: 2, vel: 900, dmg: 72, spread: 0.0016, reload: 4.0 },
     missile: { name: 'R-73 IR', lockRange: 6000, lockTime: 0.9, cone: 10 },
     flares: 40,
     hp: { fuselage: 470, wingL: 250, wingR: 250, engine: 300, tail: 200 }, armor: 1.12,
@@ -216,7 +216,7 @@ export const AIRCRAFT = {
       rollRate: 135, pitchK: 15, pitchD: 4.6, yawK: 9, yawD: 3.6 },
     engine: { thrustMil: 81000, thrustAB: 81000, spool: 2.6, lapse: 0.6, twin: true, noAB: true },
     inertia: [210000, 330000, 120000],
-    gun: { name: 'GAU-8 Avenger 30 mm', rpm: 3900, box: 300, boxes: 3, vel: 1010, dmg: 36, spread: 0.0022, reload: 4.5 },
+    gun: { name: 'GAU-8 Avenger 30 mm', rpm: 3900, box: 300, boxes: 3, vel: 1010, dmg: 52, spread: 0.0022, reload: 4.5 },
     missile: { name: 'AIM-9 IR', lockRange: 3600, lockTime: 1.1, cone: 8 },
     flares: 48,
     hp: { fuselage: 640, wingL: 340, wingR: 340, engine: 330, tail: 260 }, armor: 1.6,
@@ -233,7 +233,7 @@ export const AIRCRAFT = {
 export const AIRCRAFT_ORDER = ['f14', 'f18', 'f16', 'su27', 'a10'];
 
 export const MISSILE = {
-  max: 5, burn: 2.6, accel: 260, maxSpeed: 900, maxG: 32, life: 14, fuse: 11, dmg: 700, blast: 22,
+  max: 5, burn: 2.6, accel: 260, maxSpeed: 900, maxG: 32, life: 14, fuse: 11, dmg: 900, blast: 24,
   gimbal: 50, // deg off-bore seeker limit
 };
 export const FLAK = { burst: 24, dmg: 150 };
