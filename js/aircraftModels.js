@@ -12,14 +12,19 @@ const PAINT = {
   coast: { base: 0xffffff, under: 0xd7dde4, dark: 0x4f5e70, band: 0xb3242a },
   a10navy: { base: 0x77808a, under: 0x8b939c, dark: 0x4f565e, band: 0x1d4f9c },
   a10coast: { base: 0x6d7782, under: 0x87909a, dark: 0x4a525a, band: 0xb3242a },
+  f22navy: { base: 0xffffff, under: 0xeceef0, dark: 0x4d5258, band: 0x1d4f9c },
+  f22coast: { base: 0xffffff, under: 0xe9ecf1, dark: 0x4a525c, band: 0xb3242a },
 };
 const matCache = {};
 function materials(team, id) {
-  const key = team + (id === 'a10' ? 'a' : '');
+  const raptor = id === 'f22';
+  const key = team + (id === 'a10' ? 'a' : raptor ? 'r' : id === 'f16' ? 'v' : '');
   if (matCache[key]) return matCache[key];
-  const p = PAINT[id === 'a10' ? 'a10' + team : team];
-  const camo = team === 'coast' && id !== 'a10';
-  const skin = new THREE.MeshStandardMaterial({ color: p.base, map: camo ? TEX.camo : TEX.panel, normalMap: TEX.panelN, normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.52, metalness: 0.32, roughnessMap: TEX.panelR, envMapIntensity: 0.9 });
+  const p = PAINT[id === 'a10' ? 'a10' + team : raptor ? 'f22' + team : team];
+  const camo = team === 'coast' && id !== 'a10' && !raptor;
+  const map = raptor ? (team === 'coast' ? TEX.raptorC : TEX.raptor) : camo ? TEX.camo : TEX.panel;
+  // the F-22's radar-absorbent coating has a faint metallic sheen
+  const skin = new THREE.MeshStandardMaterial({ color: p.base, map, normalMap: TEX.panelN, normalScale: new THREE.Vector2(0.6, 0.6), roughness: raptor ? 0.5 : 0.52, metalness: raptor ? 0.3 : 0.32, roughnessMap: TEX.panelR, envMapIntensity: 0.9 });
   const m = {
     skin,
     under: skin.clone(),
@@ -28,7 +33,7 @@ function materials(team, id) {
     radome: new THREE.MeshStandardMaterial({ color: 0x8c9097, roughness: 0.45, metalness: 0.1 }),
     nozzle: new THREE.MeshStandardMaterial({ color: 0x5a524a, roughness: 0.42, metalness: 0.9, normalMap: TEX.panelN, side: THREE.DoubleSide }),
     nozzleIn: new THREE.MeshStandardMaterial({ color: 0x1b1715, roughness: 0.7, metalness: 0.6, emissive: 0xff5a10, emissiveIntensity: 0 }),
-    glass: new THREE.MeshPhysicalMaterial({ color: id === 'f16' ? 0xe8d6a8 : 0xd8e4ea, roughness: 0.04, metalness: 0.0, transparent: true, opacity: 0.22, envMapIntensity: 1.6, side: THREE.DoubleSide, depthWrite: false, clearcoat: 1 }),
+    glass: new THREE.MeshPhysicalMaterial({ color: raptor ? 0xd9b04e : id === 'f16' ? 0xe8d6a8 : 0xd8e4ea, roughness: 0.04, metalness: 0.0, transparent: true, opacity: raptor ? 0.32 : 0.22, envMapIntensity: 1.6, side: THREE.DoubleSide, depthWrite: false, clearcoat: 1 }),
     frame: new THREE.MeshStandardMaterial({ color: 0x3e4247, roughness: 0.5, metalness: 0.5 }),
     tire: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.9 }),
     strut: new THREE.MeshStandardMaterial({ color: 0xd9dadc, roughness: 0.35, metalness: 0.7 }),
@@ -114,6 +119,17 @@ function nozzle(m, r, len = 1.3) {
   const flame = new THREE.Mesh(new THREE.ConeGeometry(r * 0.72, r * 9, 16, 1, true), abMat);
   flame.rotation.x = Math.PI / 2; flame.position.z = len + r * 4.5; flame.visible = false; flame.renderOrder = 6; g.add(flame);
   // no per-engine point light: changing the number of lights in the scene makes three.js recompile every shader
+  g.userData = { flame, inner, r };
+  return g;
+}
+// F-22 two-dimensional thrust-vectoring nozzle: a squared-off duct with flat upper and lower flaps
+function rectNozzle(m, r, len = 1.3) {
+  const g = new THREE.Group();
+  g.add(mesh(loft([{ z: 0, w: r * 1.12, h: r * 0.98, n: 7 }, { z: len * 0.55, w: r * 1.08, h: r * 0.86, n: 7 }, { z: len, w: r * 1.04, h: r * 0.62, n: 8 }], { seg: 24, sub: 2 }), m.nozzle));
+  for (const sd of [-1, 1]) { const flap = mesh(new THREE.BoxGeometry(r * 2.1, 0.03, len * 0.5), m.nozzle); flap.position.set(0, sd * r * 0.66, len * 0.8); flap.rotation.x = sd * 0.12; g.add(flap); }
+  const inner = mesh(new THREE.PlaneGeometry(r * 1.9, r * 1.3), m.nozzleIn); inner.position.z = len * 0.45; g.add(inner);
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(r * 0.72, r * 9, 16, 1, true), abMat);
+  flame.rotation.x = Math.PI / 2; flame.position.z = len + r * 4.5; flame.visible = false; flame.renderOrder = 6; g.add(flame);
   g.userData = { flame, inner, r };
   return g;
 }
@@ -270,6 +286,42 @@ const SPECS = {
     return { nozzles: [[-1.25, -0.32, 9.35, 0.62], [1.25, -0.32, 9.35, 0.62]], gun: [0.98, 0.3, -3.7] };
   },
 
+  f22(m, P) {
+    // chined nose (diamond-ish section) blending into a wide, flat lifting body
+    P.fuselage.add(mesh(loft([
+      { z: -9.1, w: 0.03, h: 0.03, y: 0.0 }, { z: -8.5, w: 0.4, h: 0.26, hb: 0.24, y: 0.02, n: 1.45, nb: 1.5 }, { z: -7.3, w: 0.74, h: 0.5, hb: 0.38, y: 0.08, n: 1.55, nb: 1.6 },
+      { z: -6.0, w: 0.94, h: 0.7, hb: 0.46, y: 0.16, n: 1.8, nb: 1.7 }, { z: -4.6, w: 1.2, h: 0.66, hb: 0.52, y: 0.18, n: 2.3, nb: 2.1 }, { z: -3.0, w: 1.78, h: 0.62, hb: 0.6, y: 0.14, n: 3, nb: 3 },
+      { z: -1.0, w: 2.06, h: 0.6, hb: 0.66, y: 0.1, n: 3.6, nb: 3.6 }, { z: 1.6, w: 2.16, h: 0.55, hb: 0.62, y: 0.08, n: 3.6, nb: 3.6 }, { z: 4.6, w: 2.02, h: 0.48, hb: 0.55, y: 0.06, n: 3.6, nb: 3.4 },
+      { z: 7.0, w: 1.78, h: 0.42, hb: 0.46, y: 0.06, n: 3.2, nb: 3 }, { z: 8.4, w: 1.62, h: 0.36, hb: 0.36, y: 0.08, n: 3, nb: 3 }, { z: 9.0, w: 1.5, h: 0.3, hb: 0.3, y: 0.08, n: 3, nb: 3 },
+    ], { seg: 32, open: [{ z0: -6.7, z1: -3.7, a0: Math.PI * 0.72, a1: Math.PI * 1.28 }] }), m.skin));
+    P.fuselage.add(mesh(loft([{ z: -9.45, w: 0.012, h: 0.012, y: 0.0 }, { z: -9.1, w: 0.035, h: 0.035, y: 0.0 }, { z: -8.45, w: 0.4, h: 0.26, hb: 0.24, y: 0.02, n: 1.45, nb: 1.5 }], { seg: 20, sub: 2 }), m.dark));
+    for (const s of [-1, 1]) {
+      // chine plate running from the nose into the wing leading edge
+      P.fuselage.add(mesh(wingPanel({ root: [0.7, 0.1, -8.2], span: 0.95, rootChord: 6.4, tipChord: 0.3, sweep: 80 * DEG, tRoot: 0.02, mirror: s < 0, nChord: 8, nSpan: 3 }), m.skin));
+      // caret intake: raked, diamond-section mouth with a dark duct
+      P.engine.add(mesh(loft([{ z: -4.75, w: 0.36, h: 0.4, hb: 0.42, y: -0.12, x: s * 1.42, n: 1.4, nb: 1.4 }, { z: -3.4, w: 0.42, h: 0.44, hb: 0.46, y: -0.1, x: s * 1.5, n: 1.8, nb: 1.8 }, { z: -1.2, w: 0.44, h: 0.46, hb: 0.5, y: -0.06, x: s * 1.45, n: 2.4 }, { z: 1.0, w: 0.4, h: 0.4, hb: 0.44, y: -0.04, x: s * 1.3, n: 2.6 }], { seg: 20 }), m.skin));
+      const mouth = mesh(new THREE.PlaneGeometry(0.62, 0.72), m.black); mouth.position.set(s * 1.43, -0.13, -4.72); mouth.rotation.set(0, Math.PI + s * 0.35, 0); P.engine.add(mouth);
+    }
+    // diamond wing: 42 deg leading edge, trailing edge swept forward, slight anhedral
+    const wing = { root: [1.55, 0.1, -2.05], span: 5.23, rootChord: 7.95, tipChord: 1.5, sweep: 42 * DEG, dihedral: -3.25 * DEG, tRoot: 0.042, tTip: 0.03, nChord: 12 };
+    P.ailR = addWing(P.wingR, wing, m.skin, { c: 0.76, s0: 0.12, s1: 0.82 });
+    P.ailL = addWing(P.wingL, { ...wing, mirror: true }, m.skin, { c: 0.76, s0: 0.12, s1: 0.82 });
+    // big all-moving stabilators tucked right behind the wing
+    const stab = { root: [-0.1, 0, -1.45], span: 2.55, rootChord: 3.2, tipChord: 1.05, sweep: 42 * DEG, tRoot: 0.035 };
+    P.stabR = new THREE.Group(); P.stabR.position.set(1.62, 0.02, 8.0); P.stabR.add(mesh(wingPanel(stab), m.skin)); P.tail.add(P.stabR);
+    P.stabL = new THREE.Group(); P.stabL.position.set(-1.62, 0.02, 8.0); P.stabL.add(mesh(wingPanel({ ...stab, mirror: true }), m.skin)); P.tail.add(P.stabL);
+    // twin fins canted 28 deg outward
+    P.rudders = [];
+    for (const s of [-1, 1]) {
+      const f = vfin({ root: [s * 1.95, 0.42, 4.75], span: 2.75, rootChord: 3.7, tipChord: 1.35, sweep: 23 * DEG, tRoot: 0.04 }, m.skin, 28 * DEG, s);
+      P.tail.add(f.g); P.rudders.push(f.rud);
+      const ins = insignia(P.tail, m, s * 2.67, 1.62, 6.35, 0.75, s * Math.PI / 2); ins.rotation.order = 'ZYX'; ins.rotation.z = -s * 28 * DEG; // flat on the canted fin
+    }
+    // frameless, gold-tinted bubble canopy
+    P.canopy.add(mesh(loft([{ z: -6.95, w: 0.05, h: 0.03, y: 0.8 }, { z: -6.3, w: 0.5, h: 0.5, y: 0.8 }, { z: -5.4, w: 0.62, h: 0.76, y: 0.8 }, { z: -4.4, w: 0.62, h: 0.76, y: 0.8 }, { z: -3.5, w: 0.48, h: 0.56, y: 0.8 }, { z: -2.9, w: 0.12, h: 0.12, y: 0.8 }], { seg: 24, angle: [Math.PI / 2, Math.PI * 1.5] }), m.glass));
+    return { nozzles: [[-0.82, 0.08, 9.3, 0.55], [0.82, 0.08, 9.3, 0.55]], gun: [1.05, 0.42, -2.6], rectNozzles: true };
+  },
+
   a10(m, P) {
     P.fuselage.add(mesh(loft([
       { z: -8.05, w: 0.3, h: 0.32, y: -0.2 }, { z: -7.3, w: 0.62, h: 0.66, hb: 0.6, y: -0.06 }, { z: -6.2, w: 0.82, h: 0.92, hb: 0.78, y: 0.12 },
@@ -303,7 +355,7 @@ const SPECS = {
   },
 };
 
-const COCKPIT_BOX = { f16: [0.98, 0.75, 2.3, 0.115, -3.6], f14: [1.42, 0.85, 4.0, 0.345, -4.3], f18: [1.2, 0.8, 2.5, 0.24, -4.15], su27: [1.44, 0.85, 3.1, 0.425, -6.15], a10: [1.4, 0.9, 2.3, 0.39, -5.05] };
+const COCKPIT_BOX = { f22: [1.02, 0.75, 2.7, 0.42, -5.15], f16: [0.98, 0.75, 2.3, 0.115, -3.6], f14: [1.42, 0.85, 4.0, 0.345, -4.3], f18: [1.2, 0.8, 2.5, 0.24, -4.15], su27: [1.44, 0.85, 3.1, 0.425, -6.15], a10: [1.4, 0.9, 2.3, 0.39, -5.05] };
 function frameArch(m, z, y, w, h) {
   const curve = new THREE.EllipseCurve(0, 0, w, h, 0, Math.PI, false, 0);
   const pts = curve.getPoints(20).map((p) => new THREE.Vector3(p.x, p.y + y, z));
@@ -327,7 +379,7 @@ export function buildAircraft(id, team = 'navy', opts = {}) {
     const ck = COCKPIT_BOX[id]; tub.scale.set(ck[0], ck[1], ck[2]); tub.position.set(0, ck[3], ck[4]); P.fuselage.add(tub);
   }
   // nozzles
-  P.nozzles = info.nozzles.map(([x, y, z, r]) => { const n = nozzle(m, r, r * 1.8); n.position.set(x, y, z - r * 0.9); P.engine.add(n); return n; });
+  P.nozzles = info.nozzles.map(([x, y, z, r]) => { const n = (info.rectNozzles ? rectNozzle : nozzle)(m, r, r * 1.8); n.position.set(x, y, z - r * 0.9); P.engine.add(n); return n; });
   // landing gear (nose folds forward, mains fold inward)
   const wr = g.wheelR;
   const mkLeg = (pos, r, main, side) => {

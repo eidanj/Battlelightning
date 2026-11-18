@@ -227,9 +227,13 @@ export class FlightModel {
     const aCmd = lerp(aGnd, aAir, airBlend);
     const sq = Math.sqrt(qa + 0.004);
     let dwx = ae.pitchK * qa * tailAuth * (aCmd - alpha) - ae.pitchD * sq * (om.x - gdx * airBlend);
-    dwx -= 2.4 * this.stall * Math.min(qa * 4, 1) * (alpha > 0 ? 1 : -1);
+    // thrust vectoring (F-22): the nozzles add pitch authority that does not need airspeed, so the nose can be held
+    // and pointed even when slow, and a stall does not drop it as hard
+    const tv = ae.tv ? clamp(this.thrust / this.def.engine.thrustAB, 0, 1) * airBlend : 0;
+    if (tv > 0) dwx += 2.6 * tv * (aCmd - alpha) - 1.1 * tv * (om.x - gdx);
+    dwx -= 2.4 * (1 - 0.6 * tv) * this.stall * Math.min(qa * 4, 1) * (alpha > 0 ? 1 : -1);
     // roll: rate command
-    const pMax = ae.rollRate * DEG * clamp(Math.sqrt(qn / 0.5), 0.05, 1) * (1 - 0.65 * this.stall) * (qn > 2.6 ? 0.85 : 1);
+    const pMax = ae.rollRate * DEG * clamp(Math.sqrt(qn / 0.5), 0.05 + 0.3 * tv, 1) * (1 - 0.65 * this.stall) * (qn > 2.6 ? 0.85 : 1);
     const pCmd = -this.surf.roll * pMax;
     let dwz = 5.5 * (pCmd - om.z) * Math.min(1, 0.06 + qa * 2.5);
     dwz += 1.6 * qa * beta;                                       // dihedral

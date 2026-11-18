@@ -103,8 +103,8 @@ export const TIME_OF_DAY = {
 
 // ---------------- TEAMS ----------------
 export const TEAMS = {
-  navy:  { id: 'navy',  name: 'Navy Task Force', short: 'NAVY',  base: 'carrier', paint: 'navy',  pool: ['f14', 'f14', 'f18', 'f18', 'f16', 'su27', 'a10'] },
-  coast: { id: 'coast', name: 'Coastal Air Wing', short: 'COAST', base: 'airbase', paint: 'coast', pool: ['su27', 'su27', 'f16', 'f16', 'a10', 'f18', 'f14'] },
+  navy:  { id: 'navy',  name: 'Navy Task Force', short: 'NAVY',  base: 'carrier', paint: 'navy',  pool: ['f14', 'f14', 'f18', 'f18', 'f16', 'su27', 'a10', 'f22'] },
+  coast: { id: 'coast', name: 'Coastal Air Wing', short: 'COAST', base: 'airbase', paint: 'coast', pool: ['su27', 'su27', 'f16', 'f16', 'a10', 'f18', 'f14', 'f22'] },
 };
 
 export const CALLSIGNS = ['Viper', 'Maverick', 'Iceman', 'Jester', 'Goose', 'Hollywood', 'Slider', 'Cougar', 'Merlin', 'Wolfman', 'Sundown', 'Chipper',
@@ -121,7 +121,7 @@ export const CALLSIGNS = ['Viper', 'Maverick', 'Iceman', 'Jester', 'Goose', 'Hol
 export const AIRCRAFT = {
   f14: {
     id: 'f14', name: 'F-14 Interceptor', short: 'F-14', role: 'Fleet interceptor',
-    pro: 'Highest top speed and the longest missile lock range in the hangar. Swing wings sweep back automatically for speed.',
+    pro: 'The longest missile lock range in the hangar and a dash speed second only to the F-22. Swing wings sweep back automatically for speed.',
     con: 'Heavy. Bleeds speed quickly in tight turns and is slow to spool up its engines.',
     mass: 24500, fuel: 7300, flowMil: 1.5, flowAB: 6.2,
     aero: { S: 52.5, cd0: 0.0215, k: 0.115, kSwept: 0.175, cdWave: 0.03, clA: 4.2, clMax: 1.55, clMaxSwept: 1.22, alphaOver: 7, gMax: 7.5, gNeg: 3,
@@ -165,7 +165,7 @@ export const AIRCRAFT = {
   },
   f16: {
     id: 'f16', name: 'F-16 Viper', short: 'F-16', role: 'Lightweight dogfighter',
-    pro: 'Best acceleration and the fastest roll rate. 9 G stability augmentation lets it out-turn heavier jets.',
+    pro: 'Quick to accelerate and to roll — second only to the F-22. 9 G stability augmentation lets it out-turn heavier jets.',
     con: 'One engine and a light airframe: it cannot take much damage, and it has the shortest missile lock range.',
     mass: 12100, fuel: 3200, flowMil: 0.95, flowAB: 4.0,
     aero: { S: 27.9, cd0: 0.0188, k: 0.118, cdWave: 0.036, clA: 3.6, clMax: 1.56, alphaOver: 7, gMax: 9.0, gNeg: 3,
@@ -207,6 +207,28 @@ export const AIRCRAFT = {
       missiles: [[-7.35, 0.0, 2.6], [7.35, 0.0, 2.6], [-5.4, -0.5, 1.8], [5.4, -0.5, 1.8], [0, -1.2, 1.0]],
     },
   },
+  f22: {
+    id: 'f22', name: 'F-22 Raptor', short: 'F-22', role: 'Stealth air dominance',
+    pro: 'The best fighter in the sky: the highest top speed, the tightest sustained turn, the fastest roll and acceleration, thrust vectoring that points the nose even when slow, and a 7 km missile lock.',
+    con: 'Internal tanks carry the least fuel of any jet — the afterburner drains it in minutes — and the airframe takes the least punishment.',
+    mass: 26800, fuel: 2900, flowMil: 1.4, flowAB: 6.4,
+    aero: { S: 78, cd0: 0.0168, k: 0.104, cdWave: 0.022, clA: 3.9, clMax: 1.86, alphaOver: 18, gMax: 9.0, gNeg: 3.2,
+      rollRate: 290, pitchK: 22, pitchD: 5.6, yawK: 11, yawD: 3.8, tv: true },
+    engine: { thrustMil: 232000, thrustAB: 316000, spool: 1.5, lapse: 0.0, twin: true },
+    inertia: [250000, 380000, 85000],
+    gun: { name: 'M61A2 20 mm', rpm: 6000, box: 160, boxes: 3, vel: 1050, dmg: 34, spread: 0.0013, reload: 3.0 },
+    missile: { name: 'AIM-9X IR', lockRange: 7000, lockTime: 0.8, cone: 11 },
+    flares: 24,
+    hp: { fuselage: 270, wingL: 145, wingR: 145, engine: 160, tail: 120 }, armor: 0.88,
+    geo: {
+      len: 18.9, span: 13.56, noseZ: -9.45, tailZ: 9.45,
+      eye: [0, 1.22, -5.35], gun: [1.05, 0.42, -2.6],
+      gearNose: [0, -1.78, -6.3], gearMain: [1.6, -1.78, 1.05], wheelR: [0.3, 0.42],
+      nozzles: [[-0.82, 0.08, 9.3, 0.55], [0.82, 0.08, 9.3, 0.55]],
+      tips: [6.78, 0.12, 3.15], fin: [2.25, 2.85, 6.9], hook: [0, -0.68, 7.9],
+      missiles: [[-1.25, -0.42, -2.2], [1.25, -0.42, -2.2], [-0.55, -0.62, -0.4], [0.55, -0.62, -0.4], [0, -0.66, 0.9]],
+    },
+  },
   a10: {
     id: 'a10', name: 'A-10 Thunderbolt II', short: 'A-10', role: 'Armoured attacker',
     pro: 'A flying tank: titanium armour, the toughest airframe here, the devastating GAU-8 30 mm cannon and tight low-speed turns.',
@@ -230,7 +252,7 @@ export const AIRCRAFT = {
     },
   },
 };
-export const AIRCRAFT_ORDER = ['f14', 'f18', 'f16', 'su27', 'a10'];
+export const AIRCRAFT_ORDER = ['f22', 'f14', 'f18', 'f16', 'su27', 'a10'];
 
 export const MISSILE = {
   max: 5, burn: 2.6, accel: 260, maxSpeed: 900, maxG: 32, life: 14, fuse: 11, dmg: 900, blast: 24,

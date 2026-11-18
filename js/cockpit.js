@@ -77,7 +77,7 @@ export class Cockpit {
     this.pedals = [-1, 1].map((s) => add(new THREE.BoxGeometry(0.1, 0.16, 0.03), grey, eye.x + s * 0.12, eye.y - 1.08, eye.z - 1.0, 0.4));
     // stick
     this.stickPivot = new THREE.Group(); this.stickParent = g;
-    const side = id === 'f16';
+    const side = id === 'f16' || id === 'f22'; // side-stick jets
     this.sideStick = side;
     if (side) this.stickPivot.position.set(eye.x + 0.33, eye.y - 0.72, eye.z - 0.33);
     else this.stickPivot.position.set(eye.x, eye.y - 1.0, eye.z - 0.47);
@@ -108,7 +108,7 @@ export class Cockpit {
       const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.03, 6), mirBack); stalk.rotation.z = Math.PI / 2; stalk.position.set(0.045 * Math.sign(-ry || 1), 0, -0.004); m.add(stalk);
       return m;
     };
-    if (id !== 'f16') {
+    if (id !== 'f16' && id !== 'f22') {
       // windscreen frame: A-pillars rising from the glareshield corners and sweeping back into the canopy bow overhead
       for (const sd of [-1, 1]) {
         const pts = [[0.37, -0.27, -0.74], [0.36, -0.04, -0.54], [0.32, 0.16, -0.3], [0.22, 0.29, -0.12], [0.0, 0.33, -0.06]]

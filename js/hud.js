@@ -122,6 +122,8 @@ export class HUD {
       else if (fm.stall > 0.15 && !fm.onGround) warn = '<span class="w amber">STALL</span>';
       else if (fm.gear > 0.5 && fm.V > 170 && !fm.onGround) warn = '<span class="w amber">GEAR OVERSPEED</span>';
       else if (this.blackout > 0.5) warn = '<span class="w amber">G-LOC</span>';
+      else if (fm.engine === 'dead' && fm.fuel <= 0) warn = '<span class="w red">OUT OF FUEL — GLIDE HOME OR EJECT</span>';
+      else if (fm.fuel < plane.def.fuel * 0.15 && !fm.onGround && Math.floor(game.time * 1.5) % 3 !== 0) warn = '<span class="w amber">BINGO FUEL — RETURN TO BASE</span>';
       if (warn && warn.includes('PULL UP') || warn.includes('MISSILE')) game.audio?.warn();
       const out = Math.max(Math.abs(fm.pos.x), Math.abs(fm.pos.z)) > WORLD.boundaryWarn;
       this.el.boundary.style.opacity = out ? 1 : 0;
@@ -321,7 +323,9 @@ export class HUD {
     E.gear.className = fm.gear > 0.99 ? 'down' : fm.gear < 0.01 ? 'up' : 'moving';
     E.gl.textContent = `${fm.gLoad.toFixed(1)} G`;
     E.aoa.textContent = `RPM ${Math.round(fm.rpm * 100)}%`;
-    E.fuel.textContent = `FUEL ${Math.round(fm.fuel / p.def.fuel * 100)}%`;
+    const fuelFrac = fm.fuel / p.def.fuel;
+    E.fuel.textContent = `FUEL ${Math.round(fuelFrac * 100)}%`;
+    E.fuel.style.color = fuelFrac < 0.15 ? '#ff5a4e' : fuelFrac < 0.3 ? '#ffd23f' : '';
     const G = p.def.gun;
     E.gun.textContent = p.reloading > 0 ? 'RELOADING' : `${p.gunAmmo} / ${p.gunReserve}`;
     E.gunBar.style.width = p.reloading > 0 ? `${(1 - p.reloading / G.reload) * 100}%` : `${p.gunAmmo / G.box * 100}%`;

@@ -101,56 +101,107 @@ export function buildTextures(q = 1) {
     }
     TEX.leatherN = dataTex(normalFromHeight(h, s, 1.4), s);
   }
-  // ---- aircraft skin: panel lines, fasteners, light wear ----
+  // ---- aircraft skin: panel lines, fasteners, touch-up paint, grime and wear ----
+  // TEX.panel is a light weathered base the paint colour multiplies; the camo schemes reuse its seams and grime.
+  let skinShade; // per-pixel 0..1 multiplier (seams, grime, streaks) shared with the camo schemes
+  // one low-frequency blotch field reused for the skin's dirt mottling and every camo scheme (noise is the slow part)
+  const camoA = tileFbm(1024, 4, 4, 300), camoB = tileFbm(1024, 8, 3, 301);
   {
     const s = 1024, r = makeRng(42);
     const { c, g } = makeCanvas(s);
-    g.fillStyle = '#ececec'; g.fillRect(0, 0, s, s);
-    const { c: cr, g: gr } = makeCanvas(s); // roughness
-    gr.fillStyle = '#9a9a9a'; gr.fillRect(0, 0, s, s);
-    // subtle tonal variation between panels (paint batches)
+    g.fillStyle = '#e8e8e8'; g.fillRect(0, 0, s, s);
+    const { c: cr, g: gr } = makeCanvas(s); // roughness (red channel)
+    gr.fillStyle = 'rgb(150,150,150)'; gr.fillRect(0, 0, s, s);
+    // panels in rows, each its own paint batch: visible tone and gloss differences
     let y = 0;
     const lines = [];
     while (y < s) {
-      const hgt = 70 + r() * 140; let x = r() * -60;
-      while (x < s) { const w = 90 + r() * 220; const tone = 236 + (r() - 0.5) * 14; g.fillStyle = `rgb(${tone},${tone},${tone})`; g.fillRect(x, y, w, hgt); gr.fillStyle = `rgb(${150 + (r() - 0.5) * 40},0,0)`; gr.fillRect(x, y, w, hgt); lines.push([x, y, w, hgt]); x += w; }
+      const hgt = 70 + r() * 150; let x = r() * -60;
+      while (x < s) {
+        const w = 80 + r() * 230, tone = 234 + (r() - 0.5) * 18, warm = (r() - 0.5) * 4;
+        g.fillStyle = `rgb(${tone + warm},${tone},${tone - warm})`; g.fillRect(x, y, w, hgt);
+        gr.fillStyle = `rgb(${130 + (r() - 0.5) * 80},0,0)`; gr.fillRect(x, y, w, hgt);
+        lines.push([x, y, w, hgt]); x += w;
+      }
       y += hgt;
     }
-    // streaks (grime running aft)
-    for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(90,90,90,${0.015 + r() * 0.03})`; g.fillRect(r() * s, r() * s, 2 + r() * 8, 60 + r() * 240); }
+    // touch-up paint: fresher, slightly different grey patches over parts of panels
+    for (let i = 0; i < 46; i++) {
+      const [x0, y0, w0, h0] = lines[Math.floor(r() * lines.length)];
+      const pw = w0 * (0.25 + r() * 0.6), ph = h0 * (0.25 + r() * 0.6), px = x0 + r() * (w0 - pw), py = y0 + r() * (h0 - ph);
+      const t = 220 + r() * 30;
+      g.fillStyle = `rgba(${t},${t + 2},${t + 4},0.32)`; g.fillRect(px, py, pw, ph);
+      gr.fillStyle = 'rgba(95,0,0,0.6)'; gr.fillRect(px, py, pw, ph); // newer paint is glossier
+    }
+    // grime collects along the seams: soft dark halo first, the crisp seam goes into the height map below
+    g.strokeStyle = 'rgba(60,60,60,0.10)'; g.lineWidth = 9;
+    for (const [x, yy, w, hh] of lines) g.strokeRect(x, yy, w, hh);
+    g.strokeStyle = 'rgba(50,50,50,0.12)'; g.lineWidth = 4;
+    for (const [x, yy, w, hh] of lines) g.strokeRect(x, yy, w, hh);
+    // oil and exhaust streaks running aft (+v), some long and faint, some short and dark
+    for (let i = 0; i < 140; i++) {
+      const sx = r() * s, sy = r() * s, len = 40 + r() * 320, wd = 1.5 + r() * 9;
+      const grd = g.createLinearGradient(0, sy, 0, sy + len);
+      const a0 = 0.03 + r() * 0.09;
+      grd.addColorStop(0, `rgba(70,66,60,${a0})`); grd.addColorStop(1, 'rgba(70,66,60,0)');
+      g.fillStyle = grd; g.fillRect(sx, sy, wd, len);
+      gr.fillStyle = `rgba(200,0,0,${a0 * 1.5})`; gr.fillRect(sx, sy, wd, len); // grime is matte
+    }
+    // small stencils / access hatches: light and dark rectangles
+    for (let i = 0; i < 70; i++) {
+      const w = 6 + r() * 26, h = 3 + r() * 8, x = r() * s, yy = r() * s, dark = r() < 0.6;
+      g.fillStyle = dark ? 'rgba(40,40,40,0.35)' : 'rgba(255,255,255,0.35)'; g.fillRect(x, yy, w, h);
+    }
+    // large-scale mottling (dirt, fading) multiplied over everything
+    const ad = g.getImageData(0, 0, s, s), mot = camoB, fine = tileFbm(s, 48, 3, 4343);
     // panel seams + fasteners into a height map
     const { c: ch, g: gh } = makeCanvas(s);
     gh.fillStyle = '#fff'; gh.fillRect(0, 0, s, s);
     gh.strokeStyle = '#000'; gh.lineWidth = 2.2;
-    for (const [x, yy, w, hh] of lines) { gh.strokeRect(x + 0.5, yy + 0.5, w, hh); }
-    gh.fillStyle = '#444';
+    for (const [x, yy, w, hh] of lines) gh.strokeRect(x + 0.5, yy + 0.5, w, hh);
+    gh.fillStyle = '#3a3a3a';
     for (const [x, yy, w, hh] of lines) {
-      if (r() < 0.55) { for (let k = 6; k < w - 4; k += 11) { gh.fillRect(x + k, yy + 5, 2, 2); gh.fillRect(x + k, yy + hh - 6, 2, 2); } }
-      if (r() < 0.4) { for (let k = 6; k < hh - 4; k += 11) { gh.fillRect(x + 5, yy + k, 2, 2); } }
-      if (r() < 0.12) { gh.strokeStyle = '#222'; gh.lineWidth = 1.5; gh.strokeRect(x + w * 0.3, yy + hh * 0.3, w * 0.25, hh * 0.3); gh.strokeStyle = '#000'; gh.lineWidth = 2.2; }
+      if (r() < 0.65) { for (let k = 6; k < w - 4; k += 10) { gh.fillRect(x + k, yy + 5, 2, 2); gh.fillRect(x + k, yy + hh - 6, 2, 2); } }
+      if (r() < 0.5) { for (let k = 6; k < hh - 4; k += 10) { gh.fillRect(x + 5, yy + k, 2, 2); gh.fillRect(x + w - 6, yy + k, 2, 2); } }
+      if (r() < 0.16) { gh.strokeStyle = '#222'; gh.lineWidth = 1.5; gh.strokeRect(x + w * 0.3, yy + hh * 0.3, w * 0.25, hh * 0.3); gh.strokeStyle = '#000'; gh.lineWidth = 2.2; }
     }
     const hd = gh.getImageData(0, 0, s, s).data, hf = new Float32Array(s * s);
     for (let i = 0; i < s * s; i++) hf[i] = hd[i * 4] / 255;
-    // darken seams slightly in albedo
-    const ad = g.getImageData(0, 0, s, s);
-    for (let i = 0; i < s * s; i++) { const k = 0.86 + 0.14 * hf[i]; ad.data[i * 4] *= k; ad.data[i * 4 + 1] *= k; ad.data[i * 4 + 2] *= k; }
+    skinShade = new Float32Array(s * s);
+    for (let i = 0; i < s * s; i++) {
+      const k = (0.8 + 0.2 * hf[i]) * (0.9 + 0.12 * mot[i]) * (0.96 + 0.05 * fine[i]);
+      ad.data[i * 4] = Math.min(255, ad.data[i * 4] * k); ad.data[i * 4 + 1] = Math.min(255, ad.data[i * 4 + 1] * k); ad.data[i * 4 + 2] = Math.min(255, ad.data[i * 4 + 2] * k);
+      // camo schemes take the seams, fasteners and grime, but not the per-panel tones (those turn camo into squares)
+      skinShade[i] = (0.84 + 0.16 * hf[i]) * (0.92 + 0.1 * mot[i]) * (0.97 + 0.04 * fine[i]);
+    }
+    // streaks and stencils, softened, also go onto the camo
+    { const sd = makeCanvas(s); sd.g.fillStyle = '#fff'; sd.g.fillRect(0, 0, s, s); const rs = makeRng(77);
+      for (let i = 0; i < 110; i++) { const sx = rs() * s, sy = rs() * s, len = 40 + rs() * 300, wd = 2 + rs() * 8, a0 = 0.04 + rs() * 0.08; const grd = sd.g.createLinearGradient(0, sy, 0, sy + len); grd.addColorStop(0, `rgba(60,60,60,${a0})`); grd.addColorStop(1, 'rgba(60,60,60,0)'); sd.g.fillStyle = grd; sd.g.fillRect(sx, sy, wd, len); }
+      const sdd = sd.g.getImageData(0, 0, s, s).data; for (let i = 0; i < s * s; i++) skinShade[i] *= sdd[i * 4] / 255; }
     g.putImageData(ad, 0, 0);
     TEX.panel = canvasTex(c, { srgb: true });
-    TEX.panelN = dataTex(normalFromHeight(hf, s, 1.2), s);
+    TEX.panelN = dataTex(normalFromHeight(hf, s, 1.4), s);
     TEX.panelR = canvasTex(cr);
   }
-  // ---- camouflage (coastal team, two-tone blue-grey) ----
-  {
-    const s = 512, a = tileFbm(s, 3, 4, 300), b = tileFbm(s, 5, 3, 301);
+  // camo schemes at the skin's resolution, carrying its seams, touch-ups and grime
+  // one blotch field shared by every scheme (each reads it at its own offset/threshold): generating noise is the slow part
+  const camoTex = (colors, cuts, shift, flip = false, tint = [1, 1, 1]) => {
+    const s = 1024, a = camoA, b = camoB;
     const out = new Uint8Array(s * s * 4);
     for (let i = 0; i < s * s; i++) {
-      const v = a[i] * 0.7 + b[i] * 0.3;
-      const t = v > 0.56 ? 2 : v > 0.45 ? 1 : 0;
-      const col = [[205, 214, 224], [150, 170, 196], [108, 128, 156]][t];
-      out[i * 4] = col[0]; out[i * 4 + 1] = col[1]; out[i * 4 + 2] = col[2]; out[i * 4 + 3] = 255;
+      const x = i & 1023, y = i >> 10, j = (((y + shift) & 1023) << 10) | ((flip ? 1023 - x : x + shift) & 1023);
+      const v = a[j] * 0.72 + b[j] * 0.28;
+      let t = 0; while (t < cuts.length && v > cuts[t]) t++;
+      const col = colors[t], k = skinShade[i];
+      out[i * 4] = Math.min(255, col[0] * k * tint[0]); out[i * 4 + 1] = Math.min(255, col[1] * k * tint[1]); out[i * 4 + 2] = Math.min(255, col[2] * k * tint[2]); out[i * 4 + 3] = 255;
     }
-    TEX.camo = dataTex(out, s, s, { srgb: true });
-  }
+    return dataTex(out, s, s, { srgb: true });
+  };
+  // coastal wing: three-tone blue-grey (Flanker style)
+  TEX.camo = camoTex([[205, 214, 224], [150, 170, 196], [108, 128, 156]], [0.45, 0.56], 0);
+  // F-22 "Have Glass": two close greys in big soft-edged blotches (navy greyer, coastal slightly blue)
+  TEX.raptor = camoTex([[124, 130, 136], [100, 105, 111]], [0.5], 397);
+  TEX.raptorC = camoTex([[120, 128, 140], [96, 103, 115]], [0.5], 611, true);
   // ---- ground surfaces ----
   TEX.grass = dataTex(colorNoise(S, 16, 5, 501, [72, 88, 44], [118, 128, 70], 1.5), S, S, { srgb: true });
   TEX.forest = dataTex(colorNoise(S, 48, 5, 502, [34, 50, 30], [70, 88, 52], 2.2), S, S, { srgb: true });
