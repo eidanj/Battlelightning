@@ -1,4 +1,4 @@
-// Action-based keyboard input with rebinding, plus right-mouse free look.
+// Action-based keyboard input with rebinding, right-mouse free look, and a virtual layer fed by the touch controls.
 export class Input {
   constructor(settings) {
     this.settings = settings;
@@ -8,6 +8,8 @@ export class Input {
     this.capture = null;    // callback while rebinding a key
     this.enabled = true;
     this.mouse = { dx: 0, dy: 0, right: false, left: false };
+    // virtual inputs from the touch controls: held / tapped actions, stick axes, throttle target, look drag
+    this.v = { held: new Set(), hit: new Set(), pitch: 0, roll: 0, throttle: null, look: false };
     window.addEventListener('keydown', (e) => this._kd(e));
     window.addEventListener('keyup', (e) => { this.down.delete(e.code); });
     window.addEventListener('blur', () => { this.down.clear(); this.mouse.right = false; this.mouse.left = false; });
@@ -27,11 +29,13 @@ export class Input {
   }
   isBoundCode(code) { const k = this.settings.keys; for (const a in k) if (k[a][0] === code || k[a][1] === code) return true; return false; }
   // is an action held?
-  held(action) { const k = this.settings.keys[action]; return !!k && ((k[0] && this.down.has(k[0])) || (k[1] && this.down.has(k[1]))); }
+  held(action) { const k = this.settings.keys[action]; return this.v.held.has(action) || (!!k && ((k[0] && this.down.has(k[0])) || (k[1] && this.down.has(k[1])))); }
   // was an action pressed this frame?
-  hit(action) { const k = this.settings.keys[action]; return !!k && ((k[0] && this.pressed.has(k[0])) || (k[1] && this.pressed.has(k[1]))); }
+  hit(action) { const k = this.settings.keys[action]; return this.v.hit.has(action) || (!!k && ((k[0] && this.pressed.has(k[0])) || (k[1] && this.pressed.has(k[1])))); }
+  // a touch button acting like a key press: notify key listeners with the action's bound key
+  tap(action) { this.v.hit.add(action); const k = this.settings.keys[action] || []; const code = k[0] || k[1]; if (code) for (const fn of this.listeners) fn(code); }
   axis(neg, pos) { return (this.held(pos) ? 1 : 0) - (this.held(neg) ? 1 : 0); }
-  endFrame() { this.pressed.clear(); this.mouse.dx = 0; this.mouse.dy = 0; }
+  endFrame() { this.pressed.clear(); this.v.hit.clear(); this.mouse.dx = 0; this.mouse.dy = 0; }
   onKey(fn) { this.listeners.push(fn); }
   rebind(cb) { this.capture = cb; }
 }

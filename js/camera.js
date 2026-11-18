@@ -23,7 +23,7 @@ export class CameraRig {
   freeLook(input, dt, enabled, invert) {
     const L = this.look;
     if (input.held('lookBack')) { L.yaw = damp(L.yaw, Math.PI * 0.88 * (L.yaw < 0 ? -1 : 1), 8, dt); L.pitch = damp(L.pitch, 0.25, 8, dt); return; }
-    if (enabled && input.mouse.right) {
+    if ((enabled && input.mouse.right) || input.v?.look) {
       L.yaw = clamp(L.yaw - input.mouse.dx * 0.004, -2.7, 2.7);
       L.pitch = clamp(L.pitch - input.mouse.dy * 0.004 * (invert ? -1 : 1), -0.9, 1.45);
     } else { L.yaw = damp(L.yaw, 0, 4, dt); L.pitch = damp(L.pitch, 0, 4, dt); }

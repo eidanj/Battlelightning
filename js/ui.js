@@ -1,7 +1,7 @@
 // Menus: main menu, hangar (stat comparison straight from the flight model), match setup, settings with key
 // rebinding / graphics / audio, pause, death and end-of-match screens.
 import { AIRCRAFT, AIRCRAFT_ORDER, ACTIONS, DEFAULT_KEYS, GFX_PRESETS, TEAMS, TIME_OF_DAY, DIFFICULTY, VERSION } from './config.js';
-import { saveSettings, keyName } from './settings.js';
+import { saveSettings, keyName, actionLabel } from './settings.js';
 import { measureAircraft } from './flight.js';
 
 const $ = (s) => document.querySelector(s);
@@ -38,8 +38,8 @@ export class UI {
   refreshMenu() {
     $('#menuPlane').textContent = AIRCRAFT[this.s.aircraft].name;
     $('#menuSide').textContent = this.s.side === 'navy' ? 'Navy (carrier)' : 'Coastal Air Wing (airbase)';
-    for (const el of $$('.k-throttleUp')) el.textContent = keyName(this.s.keys.throttleUp[0]);
-    for (const el of $$('.k-eject')) el.textContent = keyName(this.s.keys.eject[0]);
+    for (const el of $$('.k-throttleUp')) el.textContent = actionLabel(this.s, 'throttleUp');
+    for (const el of $$('.k-eject')) el.textContent = actionLabel(this.s, 'eject');
   }
 
   // ---------------- hangar ----------------
@@ -117,6 +117,8 @@ export class UI {
     bind('sMusic', 'music', (v) => `${Math.round(v * 100)}%`, () => s, () => g.audio.setMusic(s.music));
     bind('sUnits', 'units', (v) => v, () => s, () => { g.hud.units = s.units; });
     bind('sInvert', 'invertLook', (v) => v, () => s, () => {});
+    bind('sTouch', 'touch', (v) => v, () => s, () => g.touch?.setMode(s.touch));
+    bind('sTouchInv', 'touchInvert', (v) => v, () => s, () => {});
     $('#sName').addEventListener('input', (e) => { s.callsign = e.target.value.trim() || 'You'; saveSettings(s); });
     this._syncGfx();
   }
@@ -126,7 +128,7 @@ export class UI {
     $$('#presets button').forEach((b) => b.classList.toggle('on', b.dataset.p === s.preset));
     setv('gScale', s.gfx.scale, (v) => `${Math.round(v * 100)}%`); setv('gShadows', s.gfx.shadows); setv('gClouds', s.gfx.clouds, (v) => (+v).toFixed(2)); setv('gTrees', s.gfx.trees, (v) => (+v).toFixed(2)); setv('gParticles', s.gfx.particles, (v) => (+v).toFixed(2));
     setv('gFov', s.fov, (v) => `${v}°`); setv('gBloom', s.gfx.bloom); setv('gFxaa', s.gfx.fxaa); setv('gFps', s.showFps);
-    setv('sVol', s.volume, (v) => `${Math.round(v * 100)}%`); setv('sMusic', s.music, (v) => `${Math.round(v * 100)}%`); setv('sUnits', s.units); setv('sInvert', s.invertLook);
+    setv('sVol', s.volume, (v) => `${Math.round(v * 100)}%`); setv('sMusic', s.music, (v) => `${Math.round(v * 100)}%`); setv('sUnits', s.units); setv('sInvert', s.invertLook); setv('sTouch', s.touch || 'auto'); setv('sTouchInv', !!s.touchInvert);
     $('#sName').value = s.callsign || 'You';
   }
   renderKeys() {

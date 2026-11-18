@@ -7,7 +7,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { FXAAPass } from 'three/addons/postprocessing/FXAAPass.js';
 import { AIRCRAFT, WORLD } from './config.js';
-import { loadSettings, saveSettings, keyName } from './settings.js';
+import { loadSettings, saveSettings, keyName, actionLabel } from './settings.js';
+import { TouchControls } from './touch.js';
 import { Input } from './input.js';
 import { AudioEngine } from './audio.js';
 import { World } from './world.js';
@@ -63,6 +64,7 @@ class Game {
       await new Promise((r) => setTimeout(r, 0));
       this.hud = new HUD(this); this.hud.units = this.settings.units; this.hud.buildMap(this.world);
       this.ui = new UI(this);
+      this.touch = new TouchControls(this);
       this.applyGraphics();
       this.showcase(this.settings.aircraft);
       this.rig.mode = 'menu';
@@ -321,12 +323,21 @@ class Game {
     const p = this.player, I = this.input;
     if (!p || !p.alive || p.ejected) return;
     const fm = p.fm;
-    fm.input.pitch = I.axis('pitchDown', 'pitchUp');
-    fm.input.roll = I.axis('rollLeft', 'rollRight');
-    fm.input.yaw = I.axis('yawLeft', 'yawRight');
+    const T = I.v; // touch stick / throttle
+    const cl = (v) => Math.max(-1, Math.min(1, v));
+    fm.input.pitch = cl(I.axis('pitchDown', 'pitchUp') + T.pitch);
+    fm.input.roll = cl(I.axis('rollLeft', 'rollRight') + T.roll);
+    fm.input.yaw = cl(I.axis('yawLeft', 'yawRight') + (fm.onGround ? T.roll * 0.8 : 0)); // touch: the stick steers the nosewheel on the ground
     fm.input.brake = I.held('brake') ? 1 : 0;
     if (I.held('throttleUp')) { if (fm.engine === 'off') fm.startEngine(); else if (fm.engine === 'running') fm.throttle = Math.min(1, fm.throttle + dt * 0.32); }
     if (I.held('throttleDown')) fm.throttle = Math.max(0, fm.throttle - dt * 0.42);
+    // touch throttle works like a real lever: it stays where you leave it
+    if (I.held('throttleUp') || I.held('throttleDown')) T.throttle = null; // keyboard takes over
+    if (T.throttle !== null) {
+      if (T.thrSet != null && fm.engine === 'running' && !T.thrTouch && Math.abs(fm.throttle - T.thrSet) > 0.02) { T.throttle = null; T.thrSet = null; } // the game moved the throttle (respawn, landing): let go
+      else if (fm.engine === 'off' && T.throttle > 0.05) fm.startEngine();
+      else if (fm.engine === 'running') { const d = T.throttle - fm.throttle; fm.throttle += Math.sign(d) * Math.min(Math.abs(d), dt * 1.4); T.thrSet = fm.throttle; }
+    } else T.thrSet = null;
     if (I.hit('gear')) {
       if (fm.onGround && fm.gearCmd > 0.5) p.say('Weight on wheels — gear stays down', 'warn', 1.5);
       else { fm.gearCmd = fm.gearCmd > 0.5 ? 0 : 1; p.say(fm.gearCmd ? 'GEAR DOWN' : 'GEAR UP', 'info', 1.2); }
@@ -343,7 +354,7 @@ class Game {
   prompts() {
     const p = this.player;
     if (!p || !p.alive || p.ejected) { this.hud.setPrompt(''); return; }
-    const fm = p.fm, k = (a) => `<kbd>${keyName(this.settings.keys[a][0])}</kbd>`;
+    const fm = p.fm, k = (a) => `<kbd>${actionLabel(this.settings, a)}</kbd>`;
     let h = '';
     if (fm.engine === 'off') h = `Hold ${k('throttleUp')} to start the engine`;
     else if (fm.engine === 'starting') h = `Engine starting… RPM ${Math.round(fm.rpm * 100)}%<div class="bar"><i style="width:${Math.round(fm.rpm / 0.62 * 100)}%"></i></div>`;
@@ -437,6 +448,7 @@ class Game {
       if (playing && !this.paused && p) this.audio.updatePlayer(p, dt, this.rig.mode === 'cockpit', this.rig.mode);
     }
     if (playing) this.hud.update(dt, { plane: this.player, camera: this.camera, ckCamera: this.ckCam, mode: this.rig.mode, game: this });
+    this.touch?.update();
   }
 
   render() {

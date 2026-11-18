@@ -1,6 +1,7 @@
 // Saved settings (localStorage) and rebindable keys.
 import { DEFAULT_SETTINGS, DEFAULT_KEYS, GFX_PRESETS } from './config.js';
 
+import { TOUCH_LABELS } from './touch.js';
 const KEY = 'battlelightning.settings.v1';
 
 export function loadSettings() {
@@ -24,6 +25,15 @@ export function saveSettings(s) { try { localStorage.setItem(KEY, JSON.stringify
 
 const NAMES = { BracketRight: ']', BracketLeft: '[', Space: 'Space', Tab: 'Tab', ShiftLeft: 'L-Shift', ShiftRight: 'R-Shift', ControlLeft: 'L-Ctrl', ControlRight: 'R-Ctrl', AltLeft: 'L-Alt', AltRight: 'R-Alt',
   ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Equal: '=', Minus: '-', Comma: ',', Period: '.', Slash: '/', Backslash: '\\', Semicolon: ';', Quote: "'", Backquote: '`', Enter: 'Enter', Backspace: 'Bksp', CapsLock: 'Caps' };
+// what to show for an action in prompts and the tutorial: the key, or the touch control's name
+export function actionLabel(settings, action) {
+  if (document.body.classList.contains('touch')) {
+    let t = TOUCH_LABELS[action] || action;
+    if (settings.touchInvert && action === 'pitchUp') t = 'STICK ▲'; else if (settings.touchInvert && action === 'pitchDown') t = 'STICK ▼';
+    return t;
+  }
+  return keyName(settings.keys[action]?.[0]);
+}
 export function keyName(code) {
   if (!code) return '—';
   if (NAMES[code]) return NAMES[code];

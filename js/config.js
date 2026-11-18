@@ -77,6 +77,8 @@ export const DEFAULT_SETTINGS = {
   units: 'kmh',          // 'kmh' | 'kts'
   mouseLook: true,       // hold right mouse to look around
   invertLook: false,
+  touch: 'auto',         // touch controls: 'auto' (phones/tablets) | 'on' | 'off'
+  touchInvert: false,    // touch stick: false = pull down for nose up (like a real stick)
   showFps: false,
   teamSize: 20,
   side: 'navy',          // 'navy' (carrier) | 'coast' (airbase)
