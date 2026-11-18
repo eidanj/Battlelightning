@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#000000" />
+  <title>Battle Lightning</title>
+  <meta name="description" content="Battle Lightning — a realistic 3D aerial combat and dogfighting game in the browser. Carrier launches, real aerodynamics, component damage, AI wingmen and enemies." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Ccircle cx=%2232%22 cy=%2232%22 r=%2230%22 fill=%22%23111%22/%3E%3Cpath d=%22M37 6 L18 36 H30 L25 58 L46 26 H34 L41 6 Z%22 fill=%22%23ffd23f%22/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./lib/three.module.min.js",
+      "three/addons/": "./lib/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- ================= HUD ================= -->
+  <div id="hud" class="hidden">
+    <canvas id="hudCanvas"></canvas>
+    <div id="gloc"></div>
+    <div id="cloudFog"></div>
+    <div id="dmgFlash"></div>
+    <div id="teambar">
+      <div class="side my"><span class="tname" id="nameL">NAVY</span><b id="cntL">20</b><div class="pips" id="pipsL"></div></div>
+      <div class="mid"><div id="mTimer">20:00</div><div id="mInfo"></div></div>
+      <div class="side en"><div class="pips" id="pipsR"></div><b id="cntR">20</b><span class="tname" id="nameR">COAST</span></div>
+    </div>
+    <div id="minimapWrap"><canvas id="minimap" width="220" height="220"></canvas></div>
+    <div id="killfeed"></div>
+    <div id="msgs"></div>
+    <div id="prompt"></div>
+    <div id="warn"></div>
+    <div id="boundary">LEAVING THE BATTLE AREA — TURN BACK</div>
+    <div id="hitmark"><i></i><i></i><i></i><i></i></div>
+    <div id="viewMode"></div>
+    <div id="dmgPanel">
+      <svg viewBox="0 0 120 140" id="dmgSvg">
+        <path id="dTail" d="M60 112 L44 132 L52 134 L60 126 L68 134 L76 132 Z" stroke-width="1.5" />
+        <path id="dEng" d="M52 92 L68 92 L70 118 L50 118 Z" stroke-width="1.5" />
+        <path id="dWingL" d="M54 52 L8 92 L8 100 L52 86 Z" stroke-width="1.5" />
+        <path id="dWingR" d="M66 52 L112 92 L112 100 L68 86 Z" stroke-width="1.5" />
+        <path id="dFus" d="M60 6 C64 16 67 30 68 50 L68 92 L52 92 L52 50 C53 30 56 16 60 6 Z" stroke-width="1.5" />
+      </svg>
+      <div class="dmgLbl">AIRFRAME <b id="dmgPct">100%</b></div>
+    </div>
+    <div id="telemetry">
+      <div class="row big"><span>SPD</span><b id="tSpd">0</b></div>
+      <div class="row big"><span>ALT</span><b id="tAlt">0</b></div>
+      <div class="row"><span>THR</span><b id="tThr">0%</b></div>
+      <div class="bar" id="tThrBar"><i></i><em></em></div>
+      <div class="row"><span id="tGear" class="down">GEAR DOWN</span><b id="tG">1.0 G</b></div>
+      <div class="row small"><span id="tAoa">RPM 0%</span><b id="tFuel">FUEL 100%</b></div>
+    </div>
+    <div id="weapons">
+      <div class="row"><span>GUN</span><b id="wGun">0</b></div>
+      <div class="bar" id="wGunBar"><i></i></div>
+      <div class="row"><span>MSL</span><div id="wMsl"></div><b id="wMslN">5/5</b></div>
+      <div class="row"><span>FLARES</span><b id="wFlr">0</b></div>
+      <div class="row"><span id="wLock"></span></div>
+    </div>
+    <div id="fps"></div>
+    <div id="tutorialBox" class="hidden"><div class="tStep"></div><div class="tText"></div><div class="tHint"></div><div class="tBar"><i></i></div></div>
+  </div>
+
+  <!-- tactical map + scoreboard (hold Tab) -->
+  <div id="tacmap" class="hidden">
+    <div class="tacInner">
+      <div class="tacMap"><h3>TACTICAL MAP</h3><canvas id="tacCanvas" width="860" height="860"></canvas></div>
+      <div id="scoreboard"></div>
+    </div>
+  </div>
+
+  <!-- ================= INTRO / LOADING (Altekz Studios) ================= -->
+  <div id="intro">
+    <div class="intro-text">ALTEKZ STUDIOS</div>
+    <div class="intro-sub">presents</div>
+    <div class="intro-load"><div class="intro-bar"><i id="loadBar"></i></div><div id="loadText">Loading…</div></div>
+    <div class="intro-skip" id="introSkip">click to continue</div>
+  </div>
+
+  <!-- ================= MAIN MENU ================= -->
+  <div id="menu" class="screen hidden">
+    <div class="menuLeft">
+      <div class="logo"><span class="b">BATTLE</span><span class="l">LIGHTNING</span><svg viewBox="0 0 40 60" class="bolt"><path d="M24 2 L6 34 H18 L12 58 L34 24 H22 L28 2 Z"/></svg></div>
+      <div class="tag">AERIAL COMBAT · CARRIER OPS · REAL AERODYNAMICS</div>
+      <nav class="mainNav">
+        <button data-go="setup" class="primary">Play</button>
+        <button data-go="hangar">Hangar</button>
+        <button data-go="tutorial">Flight School</button>
+        <button data-go="settings">Settings</button>
+        <button data-go="setup">Match Setup</button>
+      </nav>
+      <div class="menuFoot">Selected: <b id="menuPlane">F-14 Interceptor</b> · <span id="menuSide">Navy (carrier)</span><br><span class="dim">An Altekz Studios game · v<span id="ver"></span></span></div>
+    </div>
+  </div>
+
+  <!-- ================= HANGAR ================= -->
+  <div id="hangar" class="screen hidden">
+    <div class="topbar"><button class="back" data-go="menu">◂ Back</button><h2>HANGAR</h2><div class="hint">Drag to rotate · scroll to zoom</div></div>
+    <div class="planeList" id="planeList"></div>
+    <div class="statPanel" id="statPanel"></div>
+    <div class="hangarFoot"><button id="hangarSelect" class="primary">Fly this aircraft</button></div>
+  </div>
+
+  <!-- ================= MATCH SETUP ================= -->
+  <div id="setup" class="screen hidden">
+    <div class="topbar"><button class="back" data-go="menu">◂ Back</button><h2>MATCH SETUP</h2></div>
+    <div class="setupGrid">
+      <div class="card">
+        <h3>Team size</h3>
+        <div class="slider"><input type="range" id="teamSize" min="10" max="30" step="1" value="20"><output id="teamSizeOut">20 v 20</output></div>
+        <p class="dim">Planes per team, including you. Bigger battles need a faster computer.</p>
+      </div>
+      <div class="card">
+        <h3>Your side</h3>
+        <div class="seg" id="sideSeg"><button data-v="navy">Navy · Carrier</button><button data-v="coast">Coastal Air Wing · Airbase</button></div>
+        <p class="dim" id="sideDesc"></p>
+      </div>
+      <div class="card">
+        <h3>Enemy pilots</h3>
+        <div class="seg" id="diffSeg"><button data-v="rookie">Rookie</button><button data-v="veteran">Veteran</button><button data-v="ace">Ace</button></div>
+      </div>
+      <div class="card">
+        <h3>Time of day</h3>
+        <div class="seg" id="todSeg"><button data-v="dawn">Dawn</button><button data-v="noon">Noon</button><button data-v="afternoon">Afternoon</button><button data-v="sunset">Sunset</button></div>
+      </div>
+      <div class="card">
+        <h3>Aircraft</h3>
+        <div class="seg wrap" id="acSeg"></div>
+        <p class="dim"><a href="#" data-go="hangar">Compare aircraft in the hangar ▸</a></p>
+      </div>
+      <div class="card brief">
+        <h3>Briefing</h3>
+        <p>You start <b>cold and dark</b>. Hold <kbd class="k-throttleUp">]</kbd> to start the engine and spool up. On the carrier the catapult fires at full power. Pull up as you leave the deck.</p>
+        <p>Destroy every enemy aircraft. Land at your own base to repair and reload your 5 missiles. Press <kbd class="k-eject">E</kbd> twice to eject if your aircraft is doomed.</p>
+      </div>
+    </div>
+    <div class="setupFoot"><button id="startMatch" class="primary big">Launch ▸</button></div>
+  </div>
+
+  <!-- ================= SETTINGS ================= -->
+  <div id="settings" class="screen hidden">
+    <div class="topbar"><button class="back" data-go="back">◂ Back</button><h2>SETTINGS</h2></div>
+    <div class="tabs"><button data-tab="keys" class="on">Controls &amp; Keybinds</button><button data-tab="gfx">Graphics</button><button data-tab="audio">Audio &amp; Gameplay</button></div>
+    <div class="tab" id="tab-keys">
+      <p class="dim">Click a key to rebind it, then press the new key. <b>Esc</b> cancels, <b>Backspace</b> clears. Each action has a primary and an alternate key.</p>
+      <div id="keyList"></div>
+      <div class="row"><button id="resetKeys">Reset to defaults</button><span class="dim">Hold the right mouse button to look around in the cockpit. Esc pauses.</span></div>
+    </div>
+    <div class="tab hidden" id="tab-gfx">
+      <div class="presets" id="presets"></div>
+      <div class="grid2">
+        <label>Render scale <input type="range" id="gScale" min="0.5" max="1.5" step="0.05"><output></output></label>
+        <label>Shadows <select id="gShadows"><option value="0">Off</option><option value="1024">Medium</option><option value="2048">High</option><option value="4096">Ultra</option></select></label>
+        <label>Clouds <input type="range" id="gClouds" min="0.2" max="1.6" step="0.05"><output></output></label>
+        <label>Forest density <input type="range" id="gTrees" min="0.2" max="1.6" step="0.05"><output></output></label>
+        <label>Effects <input type="range" id="gParticles" min="0.3" max="1.4" step="0.05"><output></output></label>
+        <label>Field of view <input type="range" id="gFov" min="55" max="95" step="1"><output></output></label>
+        <label class="chk"><input type="checkbox" id="gBloom"> Bloom (glow)</label>
+        <label class="chk"><input type="checkbox" id="gFxaa"> Anti-aliasing</label>
+        <label class="chk"><input type="checkbox" id="gFps"> Show FPS</label>
+      </div>
+      <p class="dim">Clouds, forests, effects and the ocean quality apply when the next match starts.</p>
+    </div>
+    <div class="tab hidden" id="tab-audio">
+      <div class="grid2">
+        <label>Master volume <input type="range" id="sVol" min="0" max="1" step="0.05"><output></output></label>
+        <label>Menu music <input type="range" id="sMusic" min="0" max="1" step="0.05"><output></output></label>
+        <label>Units <select id="sUnits"><option value="kmh">km/h · metres</option><option value="kts">knots · metres</option></select></label>
+        <label>Callsign <input type="text" id="sName" maxlength="14" value="You"></label>
+        <label class="chk"><input type="checkbox" id="sInvert"> Invert free-look</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= PAUSE / DEATH / END ================= -->
+  <div id="pause" class="overlay hidden">
+    <div class="box"><h1>PAUSED</h1>
+      <button id="resume" class="primary">Resume</button>
+      <button data-go="settings">Settings</button>
+      <button id="quit">Quit to menu</button>
+      <div class="keysHelp" id="keysHelp"></div>
+    </div>
+  </div>
+  <div id="death" class="overlay hidden">
+    <div class="box"><h1 id="deathTitle">SHOT DOWN</h1><p id="deathBy"></p><p id="deathTimer" class="dim"></p>
+      <button id="respawn" class="primary" disabled>Respawn</button><button id="deathMenu">Quit to menu</button>
+    </div>
+  </div>
+  <div id="end" class="overlay dim hidden">
+    <div class="box wide"><h1 id="endTitle">VICTORY</h1><p id="endReason"></p><div id="endStats"></div>
+      <button id="again" class="primary">Fly again</button><button id="endMenu">Main menu</button>
+    </div>
+  </div>
+  <div id="clickToFly" class="hidden">Click to fly</div>
+</div>
+<noscript>Battle Lightning needs JavaScript and WebGL 2.</noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
