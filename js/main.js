@@ -183,6 +183,7 @@ class Game {
   // ---------------- matches ----------------
   async startMatch(tutorial = false) {
     const s = this.settings;
+    this.touch?.enterFullscreen(); // phones: full screen once per match start (this runs inside the tap that started it)
     this.clearMatch();
     this.ui.hideAll();
     if (this.world.atmo.tod !== undefined && this._tod !== s.timeOfDay) { this.world.setTimeOfDay(s.timeOfDay); this._tod = s.timeOfDay; this.renderer.toneMappingExposure = this.world.atmo.exposure; }

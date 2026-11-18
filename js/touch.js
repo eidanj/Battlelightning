@@ -13,20 +13,44 @@ export class TouchControls {
     this.thr = null;     // pointer id on the throttle
     this.look = null;    // { id, x, y } while dragging to look
     this.root = document.querySelector('#touch');
+    // pause menu: enter / leave full screen by hand (hidden where the browser has no full screen, e.g. iPhone Safari)
+    const pfs = document.querySelector('#pauseFs');
+    if (pfs) {
+      const label = () => { pfs.textContent = this.isFullscreen ? 'Exit full screen' : 'Full screen'; pfs.style.display = this.canFullscreen ? '' : 'none'; };
+      pfs.addEventListener('click', () => { this.toggleFullscreen(); setTimeout(label, 300); });
+      for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, label);
+      label();
+    }
     this._build();
     this.setMode(this.s.touch || 'auto');
     // auto mode: the first real touch switches the controls on
     window.addEventListener('touchstart', () => { if ((this.s.touch || 'auto') === 'auto' && !this.active) this.enable(true); }, { passive: true });
-    // full screen + landscape lock on the first tap (needs a user gesture; ignored where unsupported, e.g. iPhone Safari)
-    const fs = () => {
-      if (!this.active) return;
-      const el = document.documentElement;
-      if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
-    };
-    window.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') fs(); });
+    // Full screen is asked for ONCE, when a match starts (and from the ⛶ button) — never again on its own.
+    // If the phone leaves full screen (e.g. an edge swipe), the game just keeps going; it does not fight back.
+    // Anything that interrupts the touches (full screen change, rotation, app switch) releases the stick and buttons,
+    // so a finger lost mid-swipe can't leave the stick stuck over.
+    const reset = () => { const V = this.input.v, map = V.held.has('scoreboard'); V.pitch = 0; V.roll = 0; V.held.clear(); if (map) V.held.add('scoreboard'); this.input.v.look = false; this.stick = null; this.look = null; this.thr = null; this.input.v.thrTouch = false;
+      this.root.querySelectorAll('.on').forEach((b) => { if (!b.matches('[data-toggle]')) b.classList.remove('on'); }); this._ghost(); };
+    for (const ev of ['fullscreenchange', 'webkitfullscreenchange', 'orientationchange']) document.addEventListener(ev, reset);
+    window.addEventListener('blur', reset);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) reset(); });
+    // last finger lifted anywhere: nothing can still be held
+    window.addEventListener('touchend', (e) => { if (e.touches.length === 0 && (this.stick || this.look || [...this.input.v.held].some((a) => a !== 'scoreboard'))) reset(); }, { passive: true });
+    window.addEventListener('touchcancel', (e) => { if (e.touches.length === 0) reset(); }, { passive: true });
     window.addEventListener('resize', () => { if (!this.stick) this._ghost(); });
   }
 
+  get canFullscreen() { return !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen); }
+  get isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  enterFullscreen() {
+    if (!this.active || this.isFullscreen || !this.canFullscreen) return;
+    const el = document.documentElement, req = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen?.();
+    Promise.resolve(req).then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
+  }
+  toggleFullscreen() {
+    if (this.isFullscreen) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+    else this.enterFullscreen();
+  }
   setMode(mode) {
     this.s.touch = mode;
     this.enable(mode === 'on' || (mode === 'auto' && isTouchDevice()));

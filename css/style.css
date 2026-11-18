@@ -227,14 +227,18 @@ input[type=range] { accent-color: #ffd23f; }
 
 /* ================= touch controls (phones & tablets, landscape) ================= */
 body.touch { -webkit-touch-callout: none; }
+html, body { overscroll-behavior: none; }
+.touchOnly { display: none; } body.touch .touchOnly { display: block; }
+body.touch #keysHelp { display: none; } /* keyboard list is no use on a touch screen */
+.overlay .box { max-height: calc(100vh - 20px); overflow-y: auto; } /* never taller than the screen */
 body.touch canvas { touch-action: none; }
 #touch {
-  --sl: max(10px, env(safe-area-inset-left)); --sr: max(10px, env(safe-area-inset-right)); --sb: max(10px, env(safe-area-inset-bottom));
+  --sl: max(28px, env(safe-area-inset-left)); --sr: max(30px, env(safe-area-inset-right)); --sb: max(14px, env(safe-area-inset-bottom));
   --btn: clamp(40px, 10.5vmin, 54px); --fire: clamp(74px, 22vmin, 110px); --thrw: clamp(48px, 13vmin, 64px);
   position: absolute; inset: 0; z-index: 25; touch-action: none; -webkit-tap-highlight-color: transparent;
 }
 #touch button { touch-action: none; -webkit-tap-highlight-color: transparent; font-family: var(--ui); }
-#touch .tzone { position: absolute; left: 0; bottom: 0; width: 44%; top: calc(var(--btn) + 70px); }
+#touch .tzone { position: absolute; left: 26px; bottom: 0; width: calc(44% - 26px); top: calc(var(--btn) + 70px); }
 /* floating stick */
 #touch .tstick { position: absolute; width: calc(var(--fire) * 1.45); height: calc(var(--fire) * 1.45); margin: calc(var(--fire) * -0.725) 0 0 calc(var(--fire) * -0.725); border-radius: 50%;
   border: 2px solid rgba(255,255,255,0.35); background: radial-gradient(circle, rgba(10,16,22,0.15), rgba(10,16,22,0.45)); pointer-events: none; transition: opacity 0.2s; }
@@ -294,6 +298,7 @@ body.touch #teambar b { font-size: 20px; }
 
 /* short screens (phones in landscape): compact menus */
 @media (max-height: 520px) {
+  .overlay .box { padding: 14px 22px; gap: 8px; } .overlay h1 { font-size: 30px; margin: 0 0 4px; }
   .topbar { padding: 8px 16px; gap: 14px; } .topbar h2 { font-size: 20px; } .topbar .hint { display: none; }
   .menuLeft { gap: 8px; left: max(4vw, env(safe-area-inset-left)); } .logo .b { font-size: 28px; } .logo .l { font-size: 34px; } .logo .bolt { width: 30px; top: -6px; } .logo { padding-right: 30px; }
   .tag { display: none; } .mainNav { gap: 5px; margin-top: 4px; } .mainNav button { font-size: 15px; padding: 7px 16px; } .menuFoot { font-size: 12px; }
