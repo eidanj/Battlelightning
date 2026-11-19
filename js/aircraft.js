@@ -67,6 +67,8 @@ export class Aircraft {
   get pos() { return this.fm.pos; }
   hpFrac(c) { return this.hp[c] / this.maxHp[c]; }
   get health() { let s = 0, m = 0; for (const c of COMPS) { s += this.hp[c]; m += this.maxHp[c]; } return s / m; }
+  // health as a pilot would read it: 0 % is the point where the jet comes apart (fuselage gone or under 22 % overall)
+  combatHealth() { return this.alive ? clamp(Math.min((this.health - 0.22) / 0.78, this.hpFrac('fuselage')), 0, 1) : 0; }
   heavilyDamaged() { return this.engineFire || COMPS.some((c) => this.hpFrac(c) < 0.3); }
   say(text, kind = 'info', t = 3) { if (this.isPlayer) this.game.hud?.message(text, kind, t); }
 

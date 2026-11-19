@@ -218,7 +218,7 @@ export class Weapons {
     // ground / water / timeout
     const s = G.world.surface(m.pos.x, m.pos.z, m.pos.y);
     if (m.pos.y <= s.h || m.t > M.life) {
-      if (m.pos.y <= s.h) { if (s.kind === 'water') fx.splash(m.pos, 1); else fx.explosion(m.pos, 0.7); G.audio?.explosion(m.pos, 0.6); }
+      if (m.pos.y <= s.h) { if (s.kind === 'water') fx.splash(m.pos, 1); else fx.explosion(m.pos, 0.7); G.audio?.explosion(m.pos, 0.6); this._missed(m); }
       else this._detonate(m, null);
       this._cleanup(m); return false;
     }
@@ -229,6 +229,7 @@ export class Weapons {
     G.aa?.blast(m.pos, 30, 300, m.owner);
     G.fx.explosion(m.pos, 0.8, { vel: m.vel.clone().multiplyScalar(0.2) });
     G.audio?.explosion(m.pos, 0.8);
+    let best = null, bestK = 0;
     for (const a of G.aircraft) {
       if (!a.alive || a.team === m.team) continue;
       const d = a.fm.pos.distanceTo(m.pos);
@@ -243,10 +244,20 @@ export class Weapons {
         a.damage(aft, MISSILE.dmg * 0.5 * k, m.owner, m.pos, 'missile');
         a.damage(side, MISSILE.dmg * 0.45 * k, m.owner, m.pos, 'missile');
         a.damage(local.z > 3 ? 'tail' : 'fuselage', MISSILE.dmg * 0.3 * k, m.owner, m.pos, 'missile');
+        if (k > bestK) { bestK = k; best = a; }
       }
+    }
+    if (m.owner?.isPlayer) {
+      if (best) {
+        const left = Math.round(best.combatHealth() * 100);
+        G.hud?.message(best.alive ? `MISSILE HIT — ${best.def.short} · ${left}% left` : `MISSILE HIT — ${best.def.short} DOWN`, 'good', 3);
+        G.hud?.hitMarker(!best.alive); G.audio?.hitMarker();
+      } else this._missed(m);
     }
     this._cleanup(m);
   }
+  // the player's missile came to nothing (a decoyed one was already reported when it went for the flare)
+  _missed(m) { if (m.owner?.isPlayer && !m.decoyed && !m.reported) { m.reported = true; this.game.hud?.message('MISSILE MISSED', 'warn', 2.2); } }
   _cleanup(m) {
     m.trail.stop();
     this.game.scene.remove(m.mesh);
@@ -270,7 +281,10 @@ export class Weapons {
       const toMissile = _c.copy(m.pos).sub(owner.fm.pos).normalize();
       const aspect = toMissile.dot(_d.set(0, 0, 1).applyQuaternion(q)); // 1 = missile directly behind
       const p = 0.1 + 0.16 * (1 - Math.max(0, aspect)) + (owner.fm.ab > 0.1 ? -0.05 : 0.03);
-      if (Math.random() < p) m.target = decoy; else m.resisted = (m.resisted || 0) + 1;
+      if (Math.random() < p) {
+        m.target = decoy;
+        if (m.owner?.isPlayer && !m.decoyed) { m.decoyed = true; G.hud?.message('MISSILE DECOYED — target dropped flares', 'warn', 2.6); }
+      } else m.resisted = (m.resisted || 0) + 1;
     }
     G.audio?.flare(owner.isPlayer);
   }

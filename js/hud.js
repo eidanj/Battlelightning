@@ -76,6 +76,19 @@ export class HUD {
     this.el.feed.prepend(el); this.feedItems.push({ el, t: 7 });
     while (this.feedItems.length > 6) { const m = this.feedItems.shift(); m.el.remove(); }
   }
+  // health bar + name under the box of the aircraft the seeker is on
+  targetHealth(g, a, x, y, s) {
+    const h = a.combatHealth(), w = 54 * s, hh = 6 * s;
+    const col = h > 0.6 ? '#5be37a' : h > 0.3 ? '#ffd23f' : '#ff4a3d';
+    g.save();
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(x - w / 2 - 2 * s, y - 2 * s, w + 4 * s, hh + 4 * s);
+    g.fillStyle = col; g.fillRect(x - w / 2, y, w * h, hh);
+    g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1; g.strokeRect(x - w / 2, y, w, hh);
+    g.font = `600 ${11 * s}px Inter, system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'top';
+    g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillText(`${a.def.short} · ${Math.round(h * 100)}%`, x + 1, y + hh + 4 * s + 1);
+    g.fillStyle = col; g.fillText(`${a.def.short} · ${Math.round(h * 100)}%`, x, y + hh + 4 * s);
+    g.restore();
+  }
   hitMarker(kill = false) { this.hitT = kill ? 0.5 : 0.18; this.el.hit.classList.toggle('kill', kill); }
   damageFlash(k = 1) { this.flashT = Math.min(1, this.flashT + 0.35 * k); }
   setPrompt(html) { if (this._prompt !== html) { this._prompt = html; this.el.prompt.innerHTML = html || ''; this.el.prompt.style.opacity = html ? 1 : 0; } }
@@ -300,8 +313,11 @@ export class HUD {
       if (enemy) { g.moveTo(sp.x, sp.y + r); g.lineTo(sp.x - r, sp.y - r * 0.6); g.lineTo(sp.x + r, sp.y - r * 0.6); g.closePath(); }
       else { g.moveTo(sp.x, sp.y - r); g.lineTo(sp.x + r, sp.y); g.lineTo(sp.x, sp.y + r); g.lineTo(sp.x - r, sp.y); g.closePath(); }
       g.stroke();
-      if (locked) { g.strokeRect(sp.x - 14 * s, sp.y - 14 * s, 28 * s, 28 * s); }
-      if (dist < 4500 || locked) g.fillText(`${enemy ? '' : a.name + ' '}${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'}`, sp.x, sp.y - 12 * s);
+      if (locked) {
+        g.strokeRect(sp.x - 14 * s, sp.y - 14 * s, 28 * s, 28 * s);
+        if (enemy) this.targetHealth(g, a, sp.x, sp.y + 20 * s, s);
+      }
+      if (dist < 4500 || locked) g.fillText(`${enemy ? '' : a.name + ' '}${dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'}`, sp.x, sp.y - (locked ? 19 : 12) * s);
     }
     // incoming missile indicators
     for (const m of p.incoming) {
@@ -333,7 +349,8 @@ export class HUD {
     E.msl.innerHTML = Array.from({ length: 5 }, (_, i) => `<i class="${i < p.missiles ? 'on' : ''}"></i>`).join('');
     E.mslN.textContent = `${p.missiles}/5`;
     E.flr.textContent = `${p.flares}`;
-    E.lock.textContent = p.lockState === 2 ? 'LOCKED' : p.lockState === 1 ? 'SEEKING' : '';
+    const lt = p.lock?.target;
+    E.lock.textContent = p.lockState === 2 && lt ? `LOCKED · ${lt.def.short} ${Math.round(lt.combatHealth() * 100)}%` : p.lockState === 1 ? 'SEEKING' : '';
     E.lock.className = p.lockState === 2 ? 'locked' : p.lockState === 1 ? 'seek' : '';
     let tot = 0;
     for (const c of ['fuselage', 'wingL', 'wingR', 'engine', 'tail']) {
