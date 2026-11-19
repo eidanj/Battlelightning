@@ -167,9 +167,10 @@ export class Cockpit {
     add(new THREE.PlaneGeometry(0.09, 0.32), std({ map: pedTex, emissiveMap: pedTex, emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.7 }), eye.x, py - 0.36, pz + 0.101);
 
     // ---- glareshield hood with a padded lip, caution lights and the HUD
-    add(new RoundedBoxGeometry(PW + 0.1, 0.045, 0.27, 3, 0.02), M.pad, eye.x, eye.y - 0.19, eye.z - 0.86, 0.06);
-    const lip = add(new THREE.CylinderGeometry(0.022, 0.022, PW + 0.08, 14), M.pad, eye.x, eye.y - 0.205, eye.z - 0.735, 0, 0, Math.PI / 2);
-    lip.scale.set(1, 1, 0.8);
+    // a thin, flat anti-glare hood (a thick black one reads as a seat back when the cockpit is in shadow)
+    const hood = std({ color: 0x26292c, roughness: 0.96, metalness: 0.05 });
+    add(new RoundedBoxGeometry(PW + 0.1, 0.024, 0.27, 2, 0.01), hood, eye.x, eye.y - 0.2, eye.z - 0.86, 0.06);
+    add(new RoundedBoxGeometry(PW + 0.09, 0.014, 0.022, 2, 0.006), M.rubber, eye.x, eye.y - 0.214, eye.z - 0.733);
     for (const sd of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.26, 0.3), M.paint, eye.x + sd * (PW / 2 + 0.03), eye.y - 0.36, eye.z - 0.78, -0.22); // panel cheeks
     const lightMat = (col) => new THREE.MeshStandardMaterial({ color: 0x111111, emissive: col, emissiveIntensity: 0, roughness: 0.4 });
     this.capLight = add(new RoundedBoxGeometry(0.05, 0.026, 0.02, 2, 0.004), lightMat(0xffa21a), eye.x - 0.2, eye.y - 0.165, eye.z - 0.745, -0.5);
@@ -180,17 +181,17 @@ export class Cockpit {
     this.aoaLights = [0x31ff6a, 0xffb21a, 0xff3a2a].map((col, i) => add(new THREE.BoxGeometry(0.016, 0.01, 0.008), lightMat(col), eye.x - 0.13, eye.y - 0.15 - i * 0.013, eye.z - 0.735, -0.4));
     add(new THREE.BoxGeometry(0.026, 0.05, 0.01), M.bezel, eye.x - 0.13, eye.y - 0.162, eye.z - 0.74, -0.4);
     // HUD: body, control panel face, combiner glass on two posts
-    add(new RoundedBoxGeometry(0.2, 0.08, 0.17, 2, 0.01), M.bezel, eye.x, eye.y - 0.17, eye.z - 0.72);
-    add(new THREE.BoxGeometry(0.17, 0.035, 0.01), M.button, eye.x, eye.y - 0.185, eye.z - 0.633, -0.3);
+    add(new RoundedBoxGeometry(0.17, 0.055, 0.15, 2, 0.008), M.frame, eye.x, eye.y - 0.18, eye.z - 0.73);
+    add(new THREE.BoxGeometry(0.15, 0.026, 0.008), M.button, eye.x, eye.y - 0.186, eye.z - 0.653, -0.3);
     // combiner sized to the symbology's clip area (hud.js: x ±0.12, y −0.07…0.13 in the glass's frame), with the
     // boresight near its upper third like a real HUD
-    for (const sd of [-1, 1]) add(new THREE.BoxGeometry(0.012, 0.21, 0.012), M.bezel, eye.x + sd * 0.126, eye.y - 0.03, eye.z - 0.662, 0.25);
+    for (const sd of [-1, 1]) add(new THREE.BoxGeometry(0.012, 0.225, 0.012), M.frame, eye.x + sd * 0.126, eye.y - 0.04, eye.z - 0.664, 0.25);
     const combMat = new THREE.MeshPhysicalMaterial({ color: 0x9fffd0, transparent: true, opacity: 0.07, roughness: 0.02, metalness: 0, envMapIntensity: 1.2, depthWrite: false, side: THREE.DoubleSide });
     const combGeo = new THREE.PlaneGeometry(0.24, 0.22); combGeo.translate(0, 0.02, 0);
     const comb = new THREE.Mesh(combGeo, combMat);
     comb.position.set(eye.x, eye.y - 0.055, eye.z - 0.655); comb.rotation.x = 0.25; g.add(comb);
     if (!S.glass) { const c2 = comb.clone(); c2.position.z -= 0.02; c2.position.y += 0.005; g.add(c2); }
-    add(new THREE.BoxGeometry(0.262, 0.012, 0.012), M.bezel, eye.x, eye.y + 0.071, eye.z - 0.687, 0.25);
+    add(new THREE.BoxGeometry(0.262, 0.012, 0.012), M.frame, eye.x, eye.y + 0.071, eye.z - 0.687, 0.25);
     this.combiner = comb;
 
     // ---- side consoles: drawn switch panels with matching 3D knobs/toggles/guards

@@ -171,10 +171,11 @@ export class HUD {
     const corners = [[-0.12, -0.07], [0.12, -0.07], [0.12, 0.13], [-0.12, 0.13]].map(([x, y]) => this.projNear(_a.set(x, y, 0).applyMatrix4(comb.matrixWorld), cam, { x: 0, y: 0 }));
     if (corners.some((c) => !c)) return;
     g.save();
-    g.beginPath(); corners.forEach((c, i) => (i ? g.lineTo(c.x, c.y) : g.moveTo(c.x, c.y))); g.closePath(); g.clip();
-    const scale = Math.hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y) / 300;
-    this._symbology(p, cam, game, scale, GREEN);
-    g.restore();
+    try {
+      g.beginPath(); corners.forEach((c, i) => (i ? g.lineTo(c.x, c.y) : g.moveTo(c.x, c.y))); g.closePath(); g.clip();
+      const scale = Math.hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y) / 300;
+      this._symbology(p, cam, game, scale, GREEN);
+    } finally { g.restore(); }
   }
   _chaseHud(p, cam, game) { this._symbology(p, cam, game, Math.min(this.cv.width, this.cv.height) / 900, 'rgba(120,255,170,0.95)', true); }
 
@@ -309,7 +310,8 @@ export class HUD {
     if (p.team === 'navy' || game.tutorialMode) {
       const c = game.world.fleet.carrier;
       if (p.team === 'navy' || fm.pos.x < 0) {
-        thr = c.toWorld(_a.set(-13.8, c.deckY, 92), new V3()); // aim at the 3-wire const far = c.toWorld(_b.set(-39, c.deckY, -66), new V3());
+        thr = c.toWorld(_a.set(-13.8, c.deckY, 92), new V3()); // aim at the 3-wire
+        const far = c.toWorld(_b.set(-39, c.deckY, -66), new V3());
         dirX = far.x - thr.x; dirZ = far.z - thr.z; deckY = thr.y;
       }
     }

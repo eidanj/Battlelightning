@@ -379,6 +379,7 @@ class Game {
   }
 
   // ---------------- main loop ----------------
+  _frameError(e) { if (!this._errSeen) { this._errSeen = true; console.error('[frame]', e); } }
   loop() {
     let last = performance.now();
     const frame = (now) => {
@@ -387,8 +388,9 @@ class Game {
       if (dt > 0.1) dt = 0.1;
       this.fps = lerp1(this.fps, 1 / Math.max(dt, 1e-3), 0.05);
       if (this.state === 'boot') return;
-      this.update(dt);
-      this.render();
+      // one bad frame (a bug in a HUD page, say) must never freeze the game: log it once and keep going
+      try { this.update(dt); } catch (e) { this._frameError(e); }
+      try { this.render(); } catch (e) { this._frameError(e); }
       this.input.endFrame();
     };
     requestAnimationFrame(frame);
@@ -447,7 +449,7 @@ class Game {
       const eye = this.camera.position;
       this.ckSun.position.copy(eye).addScaledVector(this.world.atmo.sunDir, 5); this.ckSun.target.position.copy(eye); this.ckSun.target.updateMatrixWorld();
       this.ckSun.color.copy(this.world.atmo.sun.color); this.ckSun.intensity = this.world.atmo.sun.intensity;
-      this.ckHemi.color.copy(this.world.atmo.hemi.color); this.ckHemi.groundColor.copy(this.world.atmo.hemi.groundColor); this.ckHemi.intensity = this.world.atmo.hemi.intensity * 0.55; // the tub is enclosed: less sky light reaches in
+      this.ckHemi.color.copy(this.world.atmo.hemi.color); this.ckHemi.groundColor.copy(this.world.atmo.hemi.groundColor); this.ckHemi.intensity = this.world.atmo.hemi.intensity * 0.95; // the canopy lets in nearly all the sky light
       this.ckScene.environment = this.scene.environment;
       if (this._panelT === undefined || (this._panelT -= dt) <= 0) { this._panelT = 1 / 24; p.cockpit.draw(p, this.settings.units); }
     }
