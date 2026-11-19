@@ -1,7 +1,7 @@
 // An aircraft in the match (player or AI): flight model + 3D model + cockpit/pilot, component damage, guns,
 // missile lock, flares, carrier catapult & arresting wires, landing/repair, crashes, break-up and ejection.
 import * as THREE from 'three';
-import { AIRCRAFT, MISSILE } from './config.js';
+import { AIRCRAFT, MISSILE, GUN_ASSIST } from './config.js';
 import { FlightModel, AB_DETENT } from './flight.js';
 import { buildAircraft } from './aircraftModels.js';
 import { Cockpit } from './cockpit.js';
@@ -11,6 +11,7 @@ import { clamp, lerp, DEG, smoothstep } from './util.js';
 
 const V3 = THREE.Vector3;
 const _a = new V3(), _b = new V3(), _c = new V3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+const _aimQ = new THREE.Quaternion(), _aimI = new THREE.Quaternion(), _aimF = new V3(), _aimL = new V3();
 export const COMPS = ['fuselage', 'wingL', 'wingR', 'engine', 'tail'];
 
 function hitSpheres(def) {
@@ -45,7 +46,8 @@ export class Aircraft {
     this.alive = true; this.state = 'flying';
     const G = this.def.gun;
     this.gunAmmo = G.box; this.gunReserve = G.box * (G.boxes - 1); this.reloading = 0; this.fireAcc = 0; this.shotN = 0; this.gunFiring = false; this.gunHeat = 0;
-    this.missiles = MISSILE.max; this.flares = this.def.flares; this.missileCd = 0; this.flareCd = 0;
+    this.maxMissiles = this.def.missile.count ?? MISSILE.max;
+    this.missiles = this.maxMissiles; this.flares = this.def.flares; this.missileCd = 0; this.flareCd = 0;
     this.lock = { target: null, t: 0, state: 0 }; this.lockState = 0;
     this.incoming = [];
     this.kills = 0; this.deaths = 0; this.assists = 0; this.score = 0;
@@ -131,7 +133,7 @@ export class Aircraft {
   catReady() { return this.cat && this.cat.phase === 'hold' ? clamp(this.cat.fullT / 1.5, 0, 1) : 0; }
 
   // ---------------- hit testing / damage ----------------
-  raycast(p0, p1) {
+  raycast(p0, p1, pad = 0) {
     _q.copy(this.fm.quat).invert();
     const a = _a.copy(p0).sub(this.fm.pos).applyQuaternion(_q), b = _b.copy(p1).sub(this.fm.pos).applyQuaternion(_q);
     const d = _c.copy(b).sub(a), L2 = d.lengthSq();
@@ -139,7 +141,7 @@ export class Aircraft {
     for (const s of this.spheres) {
       // segment-sphere
       const fx = a.x - s.c.x, fy = a.y - s.c.y, fz = a.z - s.c.z;
-      const B = fx * d.x + fy * d.y + fz * d.z, C = fx * fx + fy * fy + fz * fz - s.r * s.r;
+      const B = fx * d.x + fy * d.y + fz * d.z, C = fx * fx + fy * fy + fz * fz - (s.r + pad) * (s.r + pad);
       const disc = B * B - L2 * C;
       if (disc < 0) continue;
       const t = (-B - Math.sqrt(disc)) / L2;
@@ -243,11 +245,20 @@ export class Aircraft {
       const q = this.fm.quat;
       const muzzle = _a.set(...this.def.geo.gun).applyQuaternion(q).add(this.fm.pos);
       const fwd = _b.set(0, 0, -1).applyQuaternion(q);
+      // player assist: gun cross inside the lead circle → fire along the firing solution
+      let aim = null;
+      if (this.isPlayer && this.game.hud) {
+        const t = this.game.hud._gunTarget(this, this.game);
+        if (t && t.fm.pos.distanceTo(this.fm.pos) < GUN_ASSIST.range) {
+          const sol = this.game.hud.aimSolution(this, t);
+          if (sol.tof < 2.2 && fwd.dot(sol.dir) > Math.cos(GUN_ASSIST.cone)) aim = _aimQ.setFromUnitVectors(_aimF.set(0, 0, -1), _aimL.copy(sol.dir).applyQuaternion(_aimI.copy(q).invert())).premultiply(q);
+        }
+      }
       let shots = 0;
       while (this.fireAcc >= 1 && this.gunAmmo > 0) {
         this.fireAcc -= 1; this.gunAmmo--; this.shotN++; shots++;
         const sp = G.spread * (1 + this.gunHeat * 1.5);
-        const dir = _c.set((Math.random() - 0.5) * 2 * sp, (Math.random() - 0.5) * 2 * sp, -1).applyQuaternion(q).normalize();
+        const dir = _c.set((Math.random() - 0.5) * 2 * sp, (Math.random() - 0.5) * 2 * sp, -1).applyQuaternion(aim || q).normalize();
         const v = dir.multiplyScalar(G.vel).add(this.fm.vel);
         const mz = muzzle.clone().addScaledVector(fwd, Math.random() * 3);
         this.game.weapons.fireBullet(this, mz, v, G.dmg, this.shotN % 3 === 0, this.team);
@@ -288,7 +299,7 @@ export class Aircraft {
     if (this.missileCd > 0 || this.state === 'catapult') return false;
     if (this.missiles <= 0) { this.say('NO MISSILES LEFT', 'warn', 1.5); this.game.audio?.denied(this.isPlayer); return false; }
     if (this.lock.state !== 2 || !this.lock.target?.alive) { this.say('NO LOCK — keep the target in the circle', 'warn', 1.5); this.game.audio?.denied(this.isPlayer); return false; }
-    const slot = this.model.parts.missiles[MISSILE.max - this.missiles];
+    const slot = this.model.parts.missiles[this.maxMissiles - this.missiles];
     this.game.weapons.launchMissile(this, this.lock.target, slot);
     if (slot) slot.visible = false;
     this.missiles--; this.missileCd = 1.1;
@@ -303,13 +314,13 @@ export class Aircraft {
   // anything for the ground crew to do?
   needsService() {
     const G = this.def.gun;
-    if (this.missiles < MISSILE.max || this.flares < this.def.flares || this.gunAmmo + this.gunReserve < G.box * G.boxes || this.fm.fuel < this.def.fuel * 0.98) return true;
+    if (this.missiles < this.maxMissiles || this.flares < this.def.flares || this.gunAmmo + this.gunReserve < G.box * G.boxes || this.fm.fuel < this.def.fuel * 0.98) return true;
     for (const c of COMPS) if (this.hp[c] < this.maxHp[c]) return true;
     return this.engineFire;
   }
   rearm() {
     const G = this.def.gun;
-    this.missiles = MISSILE.max; this.flares = this.def.flares; this.gunAmmo = G.box; this.gunReserve = G.box * (G.boxes - 1); this.reloading = 0; this.gunHeat = 0;
+    this.missiles = this.maxMissiles; this.flares = this.def.flares; this.gunAmmo = G.box; this.gunReserve = G.box * (G.boxes - 1); this.reloading = 0; this.gunHeat = 0;
     for (const m of this.model.parts.missiles) m.visible = true;
     this.fm.fuel = this.def.fuel;
   }

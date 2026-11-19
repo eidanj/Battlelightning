@@ -121,7 +121,9 @@ export class Terrain {
 varying vec3 vWPos; varying vec3 vWN;
 uniform sampler2D tGrass, tForest, tRock, tSand, tDirt, tAsphalt, tConcrete, tMacro;
 uniform vec4 uCity, uBase;
-vec3 tri(sampler2D t, vec2 p) { return texture2D(t, p * 0.045).rgb * 0.6 + texture2D(t, p * 0.0071).rgb * 0.4; }
+vec3 tri(sampler2D t, vec2 p) { return texture2D(t, p * 0.045).rgb * 0.5 + texture2D(t, p * 0.0071).rgb * 0.32 + texture2D(t, p * 0.0013).rgb * 0.18; }
+float hash21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float hash11(float p) { return fract(sin(p * 127.1) * 43758.5453); }
 float rmask(vec2 p, vec4 r, float m) { vec2 d = max(vec2(r.x - p.x, r.z - p.y), vec2(p.x - r.y, p.y - r.w)); return 1.0 - smoothstep(0.0, m, length(max(d, 0.0))); }`)
         .replace('#include <map_fragment>', `
   vec2 P = vWPos.xz;
@@ -130,13 +132,67 @@ float rmask(vec2 p, vec4 r, float m) { vec2 d = max(vec2(r.x - p.x, r.z - p.y), 
   float slope = 1.0 - wn.y;
   float macro = texture2D(tMacro, P * 0.00021).r;
   float macro2 = texture2D(tMacro, P * 0.0011 + 0.3).r;
-  vec3 c = tri(tGrass, P);
-  c = mix(c, tri(tForest, P), smoothstep(0.42, 0.62, macro) * (1.0 - smoothstep(900.0, 1400.0, hgt)));
-  c = mix(c, tri(tDirt, P), smoothstep(0.55, 0.8, macro2) * 0.55);
-  c = mix(c, c * vec3(1.08, 1.02, 0.82), smoothstep(200.0, 600.0, hgt) * 0.5);
+  float macro3 = texture2D(tMacro, P * 0.000071 + 0.71).r;   // region-scale: lush vs dry country, farm belts
+  float camD = length(vWPos - cameraPosition);
+  // grass: lush or dry by region, darker damp hollows
+  vec3 g0 = tri(tGrass, P);
+  vec3 c = g0 * mix(vec3(0.94, 1.03, 0.9), vec3(1.12, 1.03, 0.8), smoothstep(0.3, 0.72, macro3));
+  c *= mix(1.0, 0.86, smoothstep(0.55, 0.8, macro2));
+  float forestM = smoothstep(0.42, 0.62, macro) * (1.0 - smoothstep(900.0, 1400.0, hgt));
+  // farmland patchwork on the lowlands: each 2.6 km region gets its own rigid field grid (own angle), fields are
+  // staggered rows, each its own crop with hedgerows between; whole fields are farmed or left, never part-blended
+  float farm = 0.0;
+  float farmPre = smoothstep(7.0, 16.0, hgt) * (1.0 - smoothstep(190.0, 300.0, hgt)) * (1.0 - smoothstep(0.14, 0.22, slope)) * (1.0 - forestM);
+  if (farmPre > 0.002) {
+    vec2 reg = floor(P / 2600.0);
+    float ang = (hash21(reg + 3.7) - 0.5) * 1.2 + 0.3;
+    float ca = cos(ang), sa = sin(ang);
+    vec2 lp = P - reg * 2600.0;
+    vec2 q = vec2(ca * lp.x - sa * lp.y, sa * lp.x + ca * lp.y);
+    vec2 cs = vec2(250.0, 165.0);
+    float row = floor(q.y / cs.y), stag = hash11(row + reg.x * 13.0 + reg.y * 7.0) * cs.x;
+    q.x += stag;
+    vec2 cell = floor(q / cs), f = fract(q / cs);
+    float split = step(0.6, hash21(cell + reg * 5.3 + 7.1));
+    vec2 id = cell + vec2(split * step(0.5, f.x) * 0.5, 0.0) + reg * 17.3;
+    float h = hash21(id);
+    // farm or not, decided once per field from the land at its centre
+    vec2 qc = (cell + 0.5) * cs; qc.x -= stag;
+    vec2 pc = reg * 2600.0 + vec2(ca * qc.x + sa * qc.y, -sa * qc.x + ca * qc.y);
+    float mc = texture2D(tMacro, pc * 0.00021).r, m3c = texture2D(tMacro, pc * 0.000071 + 0.71).r;
+    float farmCell = step(0.46, m3c * 0.55 + (1.0 - mc) * 0.45) * step(mc, 0.4) * step(0.12, hash21(id + 1.3));
+    farm = farmPre * farmCell;
+    vec3 crop = h < 0.2 ? vec3(0.70, 0.61, 0.33) : h < 0.4 ? vec3(0.33, 0.44, 0.18) : h < 0.54 ? vec3(0.40, 0.31, 0.22)
+      : h < 0.66 ? vec3(0.62, 0.57, 0.39) : h < 0.82 ? vec3(0.44, 0.52, 0.25) : vec3(0.25, 0.36, 0.15);
+    crop = pow(crop, vec3(2.2)); // picked as sRGB, shaded in linear like the textures
+    float lum = dot(g0, vec3(0.333)) * 9.0;
+    crop *= 0.8 + 0.28 * lum;
+    float fade = 1.0 - smoothstep(500.0, 2600.0, camD);
+    float rows = 0.5 + 0.5 * sin(q.x * (h >= 0.4 && h < 0.54 ? 1.9 : 1.1));
+    crop *= 1.0 - 0.13 * rows * fade;
+    vec2 e = min(f, 1.0 - f) * cs;
+    float ed = min(e.x, e.y);
+    if (split > 0.5) ed = min(ed, abs(f.x - 0.5) * cs.x);
+    float edge = 1.0 - smoothstep(2.5, 6.0 + camD * 0.003, ed);
+    vec3 hedge = h > 0.12 ? tri(tForest, P) * 0.95 : vec3(0.26, 0.22, 0.15);
+    crop = mix(crop, hedge, edge * 0.85);
+    c = mix(c, crop, farm);
+  }
+  // woods: deciduous in the lowlands, darker conifers higher up
+  vec3 forest = tri(tForest, P) * mix(vec3(1.0), vec3(0.8, 0.92, 0.9), smoothstep(250.0, 800.0, hgt));
+  c = mix(c, forest, forestM);
+  c = mix(c, tri(tDirt, P), smoothstep(0.58, 0.82, macro2) * 0.45 * (1.0 - farm));
+  // upland: tawny alpine meadow above the treeline
+  float alp = smoothstep(480.0, 1000.0, hgt + (macro2 - 0.5) * 220.0) * (1.0 - forestM);
+  c = mix(c, g0 * vec3(1.2, 1.02, 0.7), alp);
   float beach = 1.0 - smoothstep(1.5, 4.0 + macro2 * 2.5, hgt);
-  c = mix(c, tri(tSand, P), beach);
-  c = mix(c, tri(tRock, P), smoothstep(0.24, 0.42, slope + (macro2 - 0.5) * 0.12));
+  c = mix(c, tri(tSand, P) * mix(0.74, 1.0, smoothstep(0.3, 1.6, hgt)), beach);
+  // rock on steep ground (gentler slopes count as you climb), banded strata, bare summits
+  float rockT = mix(0.25, 0.12, smoothstep(700.0, 1500.0, hgt));
+  float rk = smoothstep(rockT, rockT + 0.15, slope + (macro2 - 0.5) * 0.14);
+  rk = max(rk, smoothstep(1250.0, 1650.0, hgt + (macro - 0.5) * 300.0) * 0.8);
+  vec3 rock = tri(tRock, P) * (0.9 + 0.14 * sin(hgt * 0.085 + macro2 * 9.0)) * mix(vec3(1.0), vec3(1.07, 0.98, 0.88), macro);
+  c = mix(c, rock, rk);
   c = mix(c, tri(tRock, P) * 0.85, smoothstep(-0.5, -3.0, hgt));
   float snow = smoothstep(1650.0, 1950.0, hgt + (macro - 0.5) * 300.0) * (1.0 - smoothstep(0.35, 0.6, slope));
   c = mix(c, vec3(0.92, 0.94, 0.97), snow);
@@ -147,11 +203,24 @@ float rmask(vec2 p, vec4 r, float m) { vec2 d = max(vec2(r.x - p.x, r.z - p.y), 
     float road = 1.0 - step(24.0, b.x) * step(24.0, b.y);
     float side = (1.0 - step(28.0, b.x) * step(28.0, b.y)) * (1.0 - road);
     vec3 street = texture2D(tAsphalt, P * 0.05).rgb * 0.8;
-    vec3 lot = texture2D(tConcrete, P * 0.03).rgb * vec3(0.82, 0.8, 0.76);
+    // each block: plaza / courtyard concrete in its own tone, a small park, or a surface car park
+    vec2 blk = floor((P - uCity.xz) / vec2(150.0, 136.0));
+    float hb = hash21(blk + 0.37);
+    vec2 lp2 = b - 28.0;
+    vec3 lot = texture2D(tConcrete, P * 0.03).rgb * mix(vec3(0.66, 0.64, 0.6), vec3(0.84, 0.8, 0.72), hash21(blk + 2.1));
+    if (hb < 0.14) {
+      vec3 lawn = tri(tGrass, P) * 1.1;
+      lawn = mix(lawn, tri(tForest, P), smoothstep(0.45, 0.6, texture2D(tMacro, P * 0.012).r));
+      float path = 1.0 - smoothstep(1.5, 2.5, min(abs(lp2.x - 61.0), abs(lp2.y - 54.0)));
+      lot = mix(lawn, vec3(0.3, 0.27, 0.22), path);
+    } else if (hb < 0.28) {
+      float stall = step(fract(lp2.x / 3.0), 0.07) * step(mod(lp2.y, 20.0), 6.0);
+      lot = mix(texture2D(tAsphalt, P * 0.05).rgb * 0.9, vec3(0.55), stall * 0.8);
+    }
     float lane = road * step(abs(b.x - 12.0), 0.25) * step(fract(P.y * 0.08), 0.5) + road * step(abs(b.y - 12.0), 0.25) * step(fract(P.x * 0.08), 0.5);
     vec3 cc = mix(lot, street, road);
-    cc = mix(cc, vec3(0.62, 0.6, 0.56), side);
-    cc = mix(cc, vec3(0.85, 0.8, 0.45), lane);
+    cc = mix(cc, vec3(0.34, 0.32, 0.29), side);
+    cc = mix(cc, vec3(0.7, 0.6, 0.18), lane);
     c = mix(c, cc, cm);
   }
   // airbase: mown grass + concrete aprons are separate meshes
@@ -271,7 +340,7 @@ float rmask(vec2 p, vec4 r, float m) { vec2 d = max(vec2(r.x - p.x, r.z - p.y), 
   buildTrees(density = 1, avoid) {
     const r = makeRng(2024);
     const conGeo = treeGeo('con'), leafGeo = treeGeo('leaf');
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, envMapIntensity: 0.45 });
     const group = new THREE.Group();
     const cells = {};
     const mask = TEX.foam.image.data, MS = TEX.foam.image.width;
@@ -335,12 +404,12 @@ float rmask(vec2 p, vec4 r, float m) { vec2 d = max(vec2(r.x - p.x, r.z - p.y), 
 function treeGeo(kind) {
   const parts = [];
   const add = (g, rgb) => { const n = g.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) { c[i * 3] = rgb[0]; c[i * 3 + 1] = rgb[1]; c[i * 3 + 2] = rgb[2]; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); parts.push(g.index ? g.toNonIndexed() : g); };
-  const trunk = new THREE.CylinderGeometry(0.22, 0.38, 4, 5); trunk.translate(0, 2, 0); add(trunk, [0.28, 0.2, 0.14]);
+  const trunk = new THREE.CylinderGeometry(0.22, 0.38, 4, 5); trunk.translate(0, 2, 0); add(trunk, [0.07, 0.045, 0.03]);
   if (kind === 'con') {
-    for (let i = 0; i < 3; i++) { const c = new THREE.ConeGeometry(3.4 - i * 0.9, 5.2 - i * 0.8, 7); c.translate(0, 4.5 + i * 3.1, 0); add(c, [0.13 - i * 0.01, 0.24 + i * 0.02, 0.12]); }
+    for (let i = 0; i < 3; i++) { const c = new THREE.ConeGeometry(3.4 - i * 0.9, 5.2 - i * 0.8, 7); c.translate(0, 4.5 + i * 3.1, 0); add(c, [0.025 + i * 0.004, 0.06 + i * 0.008, 0.03]); }
   } else {
-    const a = new THREE.IcosahedronGeometry(3.6, 1); a.scale(1, 0.85, 1); a.translate(0, 6.4, 0); add(a, [0.2, 0.32, 0.13]);
-    const b = new THREE.IcosahedronGeometry(2.4, 0); b.translate(1.6, 7.6, 0.8); add(b, [0.24, 0.36, 0.15]);
+    const a = new THREE.IcosahedronGeometry(3.6, 1); a.scale(1, 0.85, 1); a.translate(0, 6.4, 0); add(a, [0.045, 0.085, 0.025]);
+    const b = new THREE.IcosahedronGeometry(2.4, 0); b.translate(1.6, 7.6, 0.8); add(b, [0.06, 0.1, 0.03]);
   }
   const merged = new THREE.BufferGeometry();
   let total = 0; for (const p of parts) total += p.attributes.position.count;

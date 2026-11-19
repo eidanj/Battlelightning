@@ -157,7 +157,7 @@ export class TouchControls {
     if (d > rad) { dx *= rad / d; dy *= rad / d; }
     this.el.knob.style.transform = `translate(${dx}px, ${dy}px)`;
     // response curve: gentle near the centre for fine aiming, full authority at the edge
-    const curve = (v) => v * (0.35 + 0.65 * Math.abs(v));
+    const curve = (v) => v * (0.2 + 0.8 * Math.pow(Math.abs(v), 1.5));
     const inv = this.s.touchInvert ? -1 : 1;
     this.input.v.roll = curve(dx / rad);
     this.input.v.pitch = curve(dy / rad) * inv; // pull the stick down (toward you) = nose up

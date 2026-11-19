@@ -2,7 +2,7 @@
 // gunsight, aircraft markers, lead pipper, seeker circle, telemetry, weapons, damage diagram, radar minimap,
 // team counter, kill feed, tactical map + scoreboard, G-LOC vignette and cloud white-out.
 import * as THREE from 'three';
-import { WORLD, TEAMS } from './config.js';
+import { WORLD, TEAMS, GUN_ASSIST } from './config.js';
 import { clamp, DEG, RAD, fmtTime, lerp } from './util.js';
 
 const $ = (s) => document.querySelector(s);
@@ -151,6 +151,13 @@ export class HUD {
     out.x = (_d.x * 0.5 + 0.5) * this.cv.width; out.y = (-_d.y * 0.5 + 0.5) * this.cv.height;
     return out;
   }
+  projNear(p, cam, out) {
+    _d.copy(p).applyMatrix4(cam.matrixWorldInverse);
+    if (_d.z > -1e-3) return null;
+    _d.applyMatrix4(cam.projectionMatrix);
+    out.x = (_d.x * 0.5 + 0.5) * this.cv.width; out.y = (-_d.y * 0.5 + 0.5) * this.cv.height;
+    return out;
+  }
   projDir(dir, cam, out) { return this.proj(_c.copy(cam.position).addScaledVector(dir, 2000), cam, out); }
 
   _cockpitHud(p, cam, game) {
@@ -160,7 +167,8 @@ export class HUD {
     // combiner glass outline (clip region)
     const comb = ck.combiner;
     comb.updateWorldMatrix(true, false);
-    const corners = [[-0.12, -0.11], [0.12, -0.11], [0.12, 0.13], [-0.12, 0.13]].map(([x, y]) => this.proj(_a.set(x, y, 0).applyMatrix4(comb.matrixWorld), cam, { x: 0, y: 0 }));
+    // the glass is closer than the main camera's near plane, so project it without the depth-range test
+    const corners = [[-0.12, -0.07], [0.12, -0.07], [0.12, 0.13], [-0.12, 0.13]].map(([x, y]) => this.projNear(_a.set(x, y, 0).applyMatrix4(comb.matrixWorld), cam, { x: 0, y: 0 }));
     if (corners.some((c) => !c)) return;
     g.save();
     g.beginPath(); corners.forEach((c, i) => (i ? g.lineTo(c.x, c.y) : g.moveTo(c.x, c.y))); g.closePath(); g.clip();
@@ -188,7 +196,7 @@ export class HUD {
     // pitch ladder (horizon-referenced, centred on the heading)
     if (!chase) {
       const hd = _b.set(fwd.x, 0, fwd.z); if (hd.lengthSq() < 1e-4) hd.set(0, 0, -1); hd.normalize();
-      const side = _c.set(-hd.z, 0, hd.x);
+      const side = (this.__side || (this.__side = new V3())).set(-hd.z, 0, hd.x); // not _c: projDir uses _c
       const pitchDeg = Math.asin(clamp(fwd.y, -1, 1)) * RAD;
       for (let a = Math.round(pitchDeg / 5) * 5 - 25; a <= pitchDeg + 25; a += 5) {
         if (a < -85 || a > 85) continue;
@@ -199,7 +207,7 @@ export class HUD {
         const p2 = this.projDir(_a.copy(dir).addScaledVector(side, -gap).normalize(), cam, { x: 0, y: 0 });
         const p3 = this.projDir(_a.copy(dir).addScaledVector(side, gap).normalize(), cam, { x: 0, y: 0 });
         const p4 = this.projDir(_a.copy(dir).addScaledVector(side, w).normalize(), cam, { x: 0, y: 0 });
-        if (!p1 || !p4) continue;
+        if (!p1 || !p2 || !p3 || !p4) continue;
         g.setLineDash(a < 0 ? [6 * s, 4 * s] : []);
         g.beginPath(); g.moveTo(p1.x, p1.y); g.lineTo(p2.x, p2.y); g.moveTo(p3.x, p3.y); g.lineTo(p4.x, p4.y); g.stroke();
         if (a !== 0) { g.setLineDash([]); g.fillText(String(Math.abs(a)), p4.x + 4 * s, p4.y + 5 * s); }
@@ -216,6 +224,8 @@ export class HUD {
       g.textAlign = 'left'; g.fillText(`${fm.vel.y >= 0 ? '+' : ''}${Math.round(fm.vel.y)} m/s`, bx + 92 * s, by + 30 * s);
       g.fillText(p.lockState === 2 ? 'MSL LOCK' : p.missiles > 0 ? `MSL ${p.missiles}` : 'MSL --', bx + 92 * s, by + 46 * s);
       g.fillText(p.reloading > 0 ? 'GUN RLD' : `GUN ${p.gunAmmo}`, bx + 92 * s, by + 62 * s);
+      // thrust vectoring cue (F-22): lit while the nozzles are doing real work pointing the nose
+      if (p.def.aero.tv && Math.abs(fm.tvDeflect || 0) > 0.12) { g.textAlign = 'right'; g.fillText(`TVC ${fm.tvDeflect < 0 ? '▲' : '▼'}`, bx - 94 * s, by + 78 * s); }
       // heading tape
       const hdg = ((Math.atan2(fwd.x, -fwd.z) * RAD) + 360) % 360;
       g.textAlign = 'center';
@@ -241,13 +251,19 @@ export class HUD {
       const sol = this.aimSolution(p, t), dist = t.fm.pos.distanceTo(fm.pos);
       const lp = sol.tof < 2.2 ? this.projDir(sol.dir, cam, { x: 0, y: 0 }) : null;
       if (lp) {
-        const inRange = dist < 1100;
+        const inRange = dist < GUN_ASSIST.range;
+        // the circle is the gun assist zone: with the gun cross (+) anywhere inside it, the burst flies along this solution
+        const edge = this.projDir(_a.copy(sol.dir).applyAxisAngle(_b.set(1, 0, 0).applyQuaternion(fm.quat), GUN_ASSIST.cone), cam, { x: 0, y: 0 });
+        const rr = edge ? Math.max(14 * s, Math.hypot(edge.x - lp.x, edge.y - lp.y)) : 24 * s;
+        const on = inRange && fwd.dot(sol.dir) > Math.cos(GUN_ASSIST.cone);
         g.globalAlpha = inRange ? 1 : 0.5;
-        g.beginPath(); g.arc(lp.x, lp.y, 10 * s, 0, 7); g.moveTo(lp.x + 2 * s, lp.y); g.arc(lp.x, lp.y, 2 * s, 0, 7); g.stroke();
-        g.font = `bold ${Math.round(11 * s)}px "Share Tech Mono", monospace`; g.textAlign = 'center'; g.fillText(`${(dist / 1000).toFixed(1)}`, lp.x, lp.y + 24 * s);
-        // on target: the cross is close enough to the pipper that the burst will connect
-        const err = Math.acos(Math.min(1, fwd.dot(sol.dir)));
-        if (inRange && err < Math.max(0.004, (t.radius * 0.45) / Math.max(dist, 1))) { g.beginPath(); g.arc(lp.x, lp.y, 15 * s, 0, 7); g.stroke(); }
+        if (!on) g.setLineDash([6 * s, 5 * s]);
+        const lw0 = g.lineWidth; g.lineWidth = on ? lw0 * 1.8 : lw0;
+        g.beginPath(); g.arc(lp.x, lp.y, rr, 0, 7); g.stroke(); g.setLineDash([]);
+        g.lineWidth = lw0;
+        g.beginPath(); g.arc(lp.x, lp.y, 2.5 * s, 0, 7); g.fill();
+        g.font = `bold ${Math.round(11 * s)}px "Share Tech Mono", monospace`; g.textAlign = 'center';
+        g.fillText(on ? 'SHOOT' : `${(dist / 1000).toFixed(1)}`, lp.x, lp.y + rr + 13 * s);
         g.globalAlpha = 1;
       }
     }
@@ -369,8 +385,8 @@ export class HUD {
     E.gun.textContent = p.reloading > 0 ? 'RELOADING' : `${p.gunAmmo} / ${p.gunReserve}`;
     E.gunBar.style.width = p.reloading > 0 ? `${(1 - p.reloading / G.reload) * 100}%` : `${p.gunAmmo / G.box * 100}%`;
     E.gunBar.classList.toggle('hot', p.gunHeat > 0.7);
-    E.msl.innerHTML = Array.from({ length: 5 }, (_, i) => `<i class="${i < p.missiles ? 'on' : ''}"></i>`).join('');
-    E.mslN.textContent = `${p.missiles}/5`;
+    E.msl.innerHTML = Array.from({ length: p.maxMissiles }, (_, i) => `<i class="${i < p.missiles ? 'on' : ''}"></i>`).join('');
+    E.mslN.textContent = `${p.missiles}/${p.maxMissiles}`;
     E.flr.textContent = `${p.flares}`;
     const lt = p.lock?.target;
     E.lock.textContent = p.lockState === 2 && lt ? `LOCKED · ${lt.def.short} ${Math.round(lt.combatHealth() * 100)}%` : p.lockState === 1 ? 'SEEKING' : '';

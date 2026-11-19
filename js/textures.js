@@ -52,6 +52,71 @@ function colorNoise(size, cells, oct, seed, c0, c1, contrast = 1, extra) {
   return out;
 }
 
+// ---- ground detail textures (tileable) ----
+let _sp = null;
+const _speck = (i) => _sp[i % _sp.length];
+const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+// grass: patchy green with dry, yellower areas, darker tufts and blade speckle
+function grassTex(S) {
+  const a = tileFbm(S, 16, 5, 501), b = tileFbm(S, 5, 4, 511), tuft = tileNoise(S, S / 8, 513);
+  _sp = tileNoise(S, S / 2, 512);
+  const out = new Uint8Array(S * S * 4), dark = [52, 70, 34], mid = [92, 108, 54], dry = [136, 128, 74];
+  for (let i = 0; i < S * S; i++) {
+    let c = mix3(dark, mid, clamp((a[i] - 0.5) * 1.8 + 0.5, 0, 1));
+    c = mix3(c, dry, clamp((b[i] - 0.56) * 3, 0, 0.75));
+    const k = (0.84 + 0.32 * _sp[i]) * (tuft[i] > 0.72 ? 0.8 : 1);
+    out[i * 4] = clamp(c[0] * k, 0, 255); out[i * 4 + 1] = clamp(c[1] * k, 0, 255); out[i * 4 + 2] = clamp(c[2] * k, 0, 255); out[i * 4 + 3] = 255;
+  }
+  return out;
+}
+// forest from above: overlapping tree crowns, each lit from the upper left, with dark gaps between them
+function canopyTex(S) {
+  const r = makeRng(502), col = new Float32Array(S * S * 3);
+  for (let i = 0; i < S * S; i++) { col[i * 3] = 20; col[i * 3 + 1] = 30; col[i * 3 + 2] = 18; }
+  const n = Math.round(S * S / 150);
+  for (let k = 0; k < n; k++) {
+    const cx = r() * S, cy = r() * S, rad = S / 512 * (5 + r() * 8), hue = r();
+    const base = hue < 0.55 ? [52 + r() * 16, 76 + r() * 20, 38 + r() * 10] : hue < 0.85 ? [42, 64, 42] : [80, 92, 46];
+    const x0 = Math.floor(cx - rad), x1 = Math.ceil(cx + rad), y0 = Math.floor(cy - rad), y1 = Math.ceil(cy + rad);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const dx = (x - cx) / rad, dy = (y - cy) / rad, d2 = dx * dx + dy * dy;
+      if (d2 > 1) continue;
+      const lit = clamp(0.62 + 0.55 * (-dx * 0.6 - dy * 0.6) * (1 - d2 * 0.4) + 0.2 * (1 - d2), 0.25, 1.25);
+      const j = ((((y % S) + S) % S) * S + (((x % S) + S) % S)) * 3;
+      col[j] = base[0] * lit; col[j + 1] = base[1] * lit; col[j + 2] = base[2] * lit;
+    }
+  }
+  const out = new Uint8Array(S * S * 4);
+  for (let i = 0; i < S * S; i++) { out[i * 4] = clamp(col[i * 3], 0, 255); out[i * 4 + 1] = clamp(col[i * 3 + 1], 0, 255); out[i * 4 + 2] = clamp(col[i * 3 + 2], 0, 255); out[i * 4 + 3] = 255; }
+  return out;
+}
+// rock: layered ridged noise with dark cracks and pale lichen
+function rockTex(S) {
+  const a = tileFbm(S, 8, 6, 503), b = tileFbm(S, 24, 4, 514), c = tileFbm(S, 12, 3, 515), li = tileNoise(S, S / 4, 516);
+  const out = new Uint8Array(S * S * 4), lo = [78, 74, 68], hi = [156, 150, 138];
+  for (let i = 0; i < S * S; i++) {
+    const ridged = 1 - Math.abs(a[i] * 2 - 1);
+    let t = clamp(ridged * 0.75 + b[i] * 0.45 - 0.2, 0, 1);
+    let col = mix3(lo, hi, t);
+    if (Math.abs(c[i] - 0.5) < 0.012) col = mix3(col, [40, 38, 35], 0.75);           // cracks
+    if (li[i] > 0.86) col = mix3(col, li[i] > 0.93 ? [170, 160, 110] : [128, 140, 104], 0.45); // lichen
+    out[i * 4] = col[0]; out[i * 4 + 1] = col[1]; out[i * 4 + 2] = col[2]; out[i * 4 + 3] = 255;
+  }
+  return out;
+}
+// sand: soft dunes with wind ripples
+function sandTex(S) {
+  const a = tileFbm(S, 12, 4, 504), w = tileFbm(S, 4, 3, 517);
+  const out = new Uint8Array(S * S * 4), lo = [168, 152, 118], hi = [216, 202, 166];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const i = y * S + x;
+    const rip = 0.5 + 0.5 * Math.sin((x + w[i] * S * 0.25) / S * Math.PI * 2 * 40);
+    const col = mix3(lo, hi, clamp(a[i] * 1.1 - 0.05 + rip * 0.12, 0, 1));
+    out[i * 4] = col[0]; out[i * 4 + 1] = col[1]; out[i * 4 + 2] = col[2]; out[i * 4 + 3] = 255;
+  }
+  return out;
+}
+
 export function buildTextures(q = 1) {
   const S = q >= 1 ? 512 : 256;
   // ---- ocean detail normals (two octaves mixed) ----
@@ -203,11 +268,11 @@ export function buildTextures(q = 1) {
   TEX.raptor = camoTex([[124, 130, 136], [100, 105, 111]], [0.5], 397);
   TEX.raptorC = camoTex([[120, 128, 140], [96, 103, 115]], [0.5], 611, true);
   // ---- ground surfaces ----
-  TEX.grass = dataTex(colorNoise(S, 16, 5, 501, [72, 88, 44], [118, 128, 70], 1.5), S, S, { srgb: true });
-  TEX.forest = dataTex(colorNoise(S, 48, 5, 502, [34, 50, 30], [70, 88, 52], 2.2), S, S, { srgb: true });
-  TEX.rock = dataTex(colorNoise(S, 12, 6, 503, [88, 84, 78], [150, 144, 132], 1.8), S, S, { srgb: true });
-  TEX.sand = dataTex(colorNoise(S, 32, 4, 504, [170, 156, 122], [214, 200, 164], 1.2), S, S, { srgb: true });
-  TEX.dirt = dataTex(colorNoise(S, 20, 5, 505, [96, 82, 60], [140, 122, 92], 1.5), S, S, { srgb: true });
+  TEX.grass = dataTex(grassTex(S), S, S, { srgb: true });
+  TEX.forest = dataTex(canopyTex(S), S, S, { srgb: true });
+  TEX.rock = dataTex(rockTex(S), S, S, { srgb: true });
+  TEX.sand = dataTex(sandTex(S), S, S, { srgb: true });
+  TEX.dirt = dataTex(colorNoise(S, 20, 5, 505, [92, 78, 58], [140, 122, 92], 1.6, (t, i) => t * (0.86 + 0.28 * _speck(i))), S, S, { srgb: true });
   {
     const h = tileFbm(S, 24, 5, 506);
     TEX.groundN = dataTex(normalFromHeight(h, S, 3), S);

@@ -326,8 +326,18 @@ class Game {
     const fm = p.fm;
     const T = I.v; // touch stick / throttle
     const cl = (v) => Math.max(-1, Math.min(1, v));
-    fm.input.pitch = cl(I.axis('pitchDown', 'pitchUp') + T.pitch);
-    fm.input.roll = cl(I.axis('rollLeft', 'rollRight') + T.roll);
+    // keys are on/off, so ramp them in: a tap is a small correction for aiming, holding builds to a full pull in ~0.4 s.
+    // Letting go or reversing snaps back quickly.
+    const K = p._kin || (p._kin = { pitch: 0, roll: 0 });
+    const ramp = (cur, tgt, up) => {
+      if (tgt === 0 || (cur !== 0 && Math.sign(cur) !== Math.sign(tgt))) { const nv = cur - Math.sign(cur) * dt * 9; return Math.sign(nv) !== Math.sign(cur) ? 0 : nv; }
+      return Math.sign(tgt) * Math.min(1, Math.abs(cur) + dt * up);
+    };
+    K.pitch = ramp(K.pitch, I.axis('pitchDown', 'pitchUp'), 2.4);
+    K.roll = ramp(K.roll, I.axis('rollLeft', 'rollRight'), 3.0);
+    const shape = (v) => Math.sign(v) * Math.pow(Math.abs(v), 1.5);
+    fm.input.pitch = cl(shape(K.pitch) + T.pitch);
+    fm.input.roll = cl(shape(K.roll) + T.roll);
     fm.input.yaw = cl(I.axis('yawLeft', 'yawRight') + (fm.onGround ? T.roll * 0.8 : 0)); // touch: the stick steers the nosewheel on the ground
     fm.input.brake = I.held('brake') ? 1 : 0;
     if (I.held('throttleUp')) { if (fm.engine === 'off') fm.startEngine(); else if (fm.engine === 'running') fm.throttle = Math.min(1, fm.throttle + dt * 0.32); }
@@ -437,7 +447,7 @@ class Game {
       const eye = this.camera.position;
       this.ckSun.position.copy(eye).addScaledVector(this.world.atmo.sunDir, 5); this.ckSun.target.position.copy(eye); this.ckSun.target.updateMatrixWorld();
       this.ckSun.color.copy(this.world.atmo.sun.color); this.ckSun.intensity = this.world.atmo.sun.intensity;
-      this.ckHemi.color.copy(this.world.atmo.hemi.color); this.ckHemi.groundColor.copy(this.world.atmo.hemi.groundColor); this.ckHemi.intensity = this.world.atmo.hemi.intensity;
+      this.ckHemi.color.copy(this.world.atmo.hemi.color); this.ckHemi.groundColor.copy(this.world.atmo.hemi.groundColor); this.ckHemi.intensity = this.world.atmo.hemi.intensity * 0.55; // the tub is enclosed: less sky light reaches in
       this.ckScene.environment = this.scene.environment;
       if (this._panelT === undefined || (this._panelT -= dt) <= 0) { this._panelT = 1 / 24; p.cockpit.draw(p, this.settings.units); }
     }

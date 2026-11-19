@@ -1,7 +1,7 @@
 // Weapons: ballistic cannon rounds (gravity, drag, travel time) drawn as tracer streaks, IR missiles with a seeker,
 // proportional navigation, limited G, flare seduction and proximity fuze, flares, and timed flak shells.
 import * as THREE from 'three';
-import { MISSILE, FLAK } from './config.js';
+import { MISSILE, FLAK, GUN_ASSIST } from './config.js';
 import { makeMissileMesh } from './aircraftModels.js';
 import { clamp, DEG } from './util.js';
 
@@ -88,7 +88,7 @@ export class Weapons {
           const dx = a.fm.pos.x - nx, dy = a.fm.pos.y - ny, dz = a.fm.pos.z - nz;
           const r = a.radius + 40;
           if (dx * dx + dy * dy + dz * dz > r * r) continue;
-          const hit = a.raycast(_a.set(px, py, pz), _b.set(nx, ny, nz));
+          const hit = a.raycast(_a.set(px, py, pz), _b.set(nx, ny, nz), own?.isPlayer ? GUN_ASSIST.pad : 0);
           if (hit) { a.damage(hit.comp, this.dmg[i] * (hit.pilot ? 2.5 : 1), own, hit.point, 'gun'); if (hit.comp === 'engine' && Math.random() < 0.035 && !a.engineFire) { a.engineFire = true; a.say('ENGINE FIRE — land or eject!', 'bad', 3); } fx.spark(hit.point, _c.set(this.vel[o], this.vel[o + 1], this.vel[o + 2]).multiplyScalar(-0.02), 0.4, 0.8); fx.glow(hit.point, 2.2, 0.08, 1, 0.8, 0.5, 1); dead = true; break; }
         }
       }

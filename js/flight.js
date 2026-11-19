@@ -48,7 +48,7 @@ export class FlightModel {
     this.kSpring = W / (3 * 0.16);
     this.cSpring = 2 * 0.55 * Math.sqrt(this.kSpring * this.mass / 3);
     this.onGround = false; this.airT = 0; this.gndT = 0; this.surface = null;
-    this.alpha = 0; this.beta = 0; this.V = 0; this.mach = 0; this.gLoad = 1; this.stall = 0; this.buffet = 0; this.thrust = 0;
+    this.alpha = 0; this.beta = 0; this.V = 0; this.mach = 0; this.gLoad = 1; this.stall = 0; this.buffet = 0; this.thrust = 0; this.tvDeflect = 0;
     this.alphaStall = 0.3; this.groundSpeed = 0; this.rho = 1.225; this.qd = 0;
     this.attached = null;    // { update(fm, dt) } while held by a catapult / parked
     this.arrest = null;      // { vel: V3, decel }
@@ -230,7 +230,9 @@ export class FlightModel {
     // thrust vectoring (F-22): the nozzles add pitch authority that does not need airspeed, so the nose can be held
     // and pointed even when slow, and a stall does not drop it as hard
     const tv = ae.tv ? clamp(this.thrust / this.def.engine.thrustAB, 0, 1) * airBlend : 0;
-    if (tv > 0) dwx += 2.6 * tv * (aCmd - alpha) - 1.1 * tv * (om.x - gdx);
+    if (tv > 0) dwx += 4.6 * tv * (aCmd - alpha) - 1.5 * tv * (om.x - gdx);
+    // how hard the nozzles are working (for the model's swivelling nozzle flaps and the HUD's TVC cue): demand ÷ aero authority
+    this.tvDeflect = tv > 0 ? clamp(-(aCmd - alpha) * 6 * tv / (0.6 + qa * 6), -1, 1) * Math.min(1, Math.abs(e) * 3) : 0;
     dwx -= 2.4 * (1 - 0.6 * tv) * this.stall * Math.min(qa * 4, 1) * (alpha > 0 ? 1 : -1);
     // roll: rate command
     const pMax = ae.rollRate * DEG * clamp(Math.sqrt(qn / 0.5), 0.05 + 0.3 * tv, 1) * (1 - 0.65 * this.stall) * (qn > 2.6 ? 0.85 : 1);

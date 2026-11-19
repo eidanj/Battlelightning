@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { loft, lathe, wingPanel, hingeLine, hinge, mesh, merge } from './geo.js';
 import { TEX } from './textures.js';
 import { AIRCRAFT } from './config.js';
-import { DEG } from './util.js';
+import { DEG, clamp } from './util.js';
 
 const PAINT = {
   navy: { base: 0xa9b0b8, under: 0xc9ced3, dark: 0x5e646b, band: 0x1d4f9c },
@@ -126,11 +126,16 @@ function nozzle(m, r, len = 1.3) {
 function rectNozzle(m, r, len = 1.3) {
   const g = new THREE.Group();
   g.add(mesh(loft([{ z: 0, w: r * 1.12, h: r * 0.98, n: 7 }, { z: len * 0.55, w: r * 1.08, h: r * 0.86, n: 7 }, { z: len, w: r * 1.04, h: r * 0.62, n: 8 }], { seg: 24, sub: 2 }), m.nozzle));
-  for (const sd of [-1, 1]) { const flap = mesh(new THREE.BoxGeometry(r * 2.1, 0.03, len * 0.5), m.nozzle); flap.position.set(0, sd * r * 0.66, len * 0.8); flap.rotation.x = sd * 0.12; g.add(flap); }
+  // thrust vectoring: the upper and lower flaps (and the exhaust) swivel together about the throat, up to ±20°
+  const vec = new THREE.Group(); vec.position.z = len * 0.55; g.add(vec);
+  for (const sd of [-1, 1]) {
+    const flap = mesh(new THREE.BoxGeometry(r * 2.1, 0.035, len * 0.5), m.nozzle); flap.position.set(0, sd * r * 0.62, len * 0.25); flap.rotation.x = sd * 0.12; vec.add(flap);
+    const cheek = mesh(new THREE.BoxGeometry(0.03, r * 1.2, len * 0.45), m.nozzle); cheek.position.set(sd * r * 1.04, 0, len * 0.22); vec.add(cheek);
+  }
   const inner = mesh(new THREE.PlaneGeometry(r * 1.9, r * 1.3), m.nozzleIn); inner.position.z = len * 0.45; g.add(inner);
   const flame = new THREE.Mesh(new THREE.ConeGeometry(r * 0.72, r * 9, 16, 1, true), abMat);
-  flame.rotation.x = Math.PI / 2; flame.position.z = len + r * 4.5; flame.visible = false; flame.renderOrder = 6; g.add(flame);
-  g.userData = { flame, inner, r };
+  flame.rotation.x = Math.PI / 2; flame.position.z = len * 0.45 + r * 4.5; flame.visible = false; flame.renderOrder = 6; vec.add(flame);
+  g.userData = { flame, inner, r, vec };
   return g;
 }
 function gearLeg(m, attachY, wheelY, r, main, twin = false) {
@@ -340,9 +345,10 @@ const SPECS = {
       const fan = mesh(new THREE.CircleGeometry(0.56, 20), m.black); fan.position.set(s * 1.45, 1.08, 2.21); fan.rotation.y = Math.PI; P.engine.add(fan);
       const py = mesh(new THREE.BoxGeometry(0.6, 0.12, 1.6), m.skin); py.position.set(s * 0.95, 0.75, 3.6); py.rotation.z = s * 0.5; P.engine.add(py);
     }
+    // fixed tailplane bolted to both fins, with hinged elevators (the A-10 has no all-moving stabilator)
     const stab = { root: [0.3, 0.32, 6.1], span: 3.0, rootChord: 2.05, tipChord: 1.7, sweep: 0, tRoot: 0.08 };
-    P.stabR = new THREE.Group(); P.stabR.add(mesh(wingPanel(stab), m.skin)); P.tail.add(P.stabR);
-    P.stabL = new THREE.Group(); P.stabL.add(mesh(wingPanel({ ...stab, mirror: true }), m.skin)); P.tail.add(P.stabL);
+    P.elevR = addWing(P.tail, stab, m.skin, { c: 0.66, s0: 0.04, s1: 0.97 });
+    P.elevL = addWing(P.tail, { ...stab, mirror: true }, m.skin, { c: 0.66, s0: 0.04, s1: 0.97 });
     P.rudders = [];
     for (const s of [-1, 1]) {
       const f = vfin({ root: [s * 3.3, -0.6, 5.85], span: 3.25, rootChord: 1.95, tipChord: 1.55, sweep: 3 * DEG, tRoot: 0.08 }, m.skin, 0, s);
@@ -415,6 +421,7 @@ export function buildAircraft(id, team = 'navy', opts = {}) {
     const stab = -s.pitch * 0.32;
     if (P.stabR) { P.stabR.rotation.x = stab - s.roll * 0.12; }
     if (P.stabL) { P.stabL.rotation.x = stab + s.roll * 0.12; }
+    if (P.elevR) { P.elevR.setAngle(-s.pitch * 0.4); P.elevL.setAngle(s.pitch * 0.4); }
     for (const r of P.rudders || []) r.setAngle(s.yaw * 0.45);
     if (P.sweepR) { const a = (fm.sweep * 48) * DEG; P.sweepR.rotation.y = -a; P.sweepL.rotation.y = a; }
     // gear: legs first half, doors throughout
@@ -429,11 +436,13 @@ export function buildAircraft(id, team = 'navy', opts = {}) {
     for (const d of P.doors) { const open = Math.min(1, gp * 4) * (gp < 0.999 ? 1 : 0.85); d.dp.rotation.z = d.main ? d.side * open * 1.45 : open * 1.4; }
     P.hook.rotation.x = fm.gearCmd > 0.5 ? -0.55 : 0;
     // engine glow and afterburner
+    const tvc = !!def.aero.tv;
     for (const n of P.nozzles) {
       const u = n.userData;
       const hot = Math.max(0, (fm.rpm - 0.55) / 0.45);
       // cold engine: no glow; a turbofan without afterburner (A-10) only warms faintly
       u.inner.material.emissiveIntensity = (info.noAB ? 0.03 : 0.2) * Math.min(1, fm.rpm / 0.6) + hot * (info.noAB ? 0.05 : 1.2) + fm.ab * 6;
+      if (u.vec) { const d = tvc ? clamp(-(fm.tvDeflect || 0) * 0.32 + s.pitch * 0.12, -0.35, 0.35) : 0; u.vec.rotation.x += (d - u.vec.rotation.x) * Math.min(1, dt * 8); }
       u.flame.visible = fm.ab > 0.02;
       if (u.flame.visible) { const k = 0.5 + 0.5 * fm.ab; u.flame.scale.set(k, 0.6 + 0.6 * fm.ab + Math.random() * 0.06, k); }
     }

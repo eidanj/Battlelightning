@@ -75,7 +75,7 @@ export class UI {
     $('#statPanel').innerHTML = `<h3>${A.name}</h3><div class="role">${A.role.toUpperCase()}</div>
       ${rows.map(([n, v, f, txt]) => `<div class="stat"><span>${n}</span><div class="sb"><i style="width:${Math.max(6, Math.min(100, norm(v, f) * 100))}%"></i></div><span class="v">${txt}</span></div>`).join('')}
       <div class="procon"><div class="pro"><b>PRO</b> · ${A.pro}</div><div class="con"><b>CON</b> · ${A.con}</div></div>
-      <div class="specs">Gun: ${A.gun.name} · ${A.gun.box * A.gun.boxes} rds<br>Missiles: 5 × ${A.missile.name} · lock range ${(A.missile.lockRange / 1000).toFixed(1)} km<br>Thrust/weight ${st.tw.toFixed(2)} · stall ${Math.round(st.stall)} km/h · G limit ${A.aero.gMax}<br>Stats measured from the flight model at 1,000 m, full power.</div>`;
+      <div class="specs">Gun: ${A.gun.name} · ${A.gun.box * A.gun.boxes} rds<br>Missiles: ${A.missile.count ?? 5} × ${A.missile.name} · lock range ${(A.missile.lockRange / 1000).toFixed(1)} km<br>Thrust/weight ${st.tw.toFixed(2)} · stall ${Math.round(st.stall)} km/h · G limit ${A.aero.gMax}<br>Stats measured from the flight model at 1,000 m, full power.</div>`;
   }
 
   // ---------------- match setup ----------------

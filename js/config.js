@@ -209,15 +209,15 @@ export const AIRCRAFT = {
   },
   f22: {
     id: 'f22', name: 'F-22 Raptor', short: 'F-22', role: 'Stealth air dominance',
-    pro: 'The best fighter in the sky: the highest top speed, the tightest sustained turn, the fastest roll and acceleration, thrust vectoring that points the nose even when slow, and a 7 km missile lock.',
+    pro: 'The best fighter in the sky: the highest top speed, the tightest sustained turn, the fastest roll and acceleration, thrust-vectoring nozzles that swivel to point the nose even when slow, six missiles instead of five, and a 7 km missile lock.',
     con: 'Internal tanks carry the least fuel of any jet — the afterburner drains it in minutes — and the airframe takes the least punishment.',
     mass: 26800, fuel: 2900, flowMil: 1.4, flowAB: 6.4,
-    aero: { S: 78, cd0: 0.0168, k: 0.104, cdWave: 0.022, clA: 3.9, clMax: 1.86, alphaOver: 18, gMax: 9.0, gNeg: 3.2,
+    aero: { S: 78, cd0: 0.0168, k: 0.104, cdWave: 0.022, clA: 3.9, clMax: 1.86, alphaOver: 24, gMax: 9.0, gNeg: 3.2,
       rollRate: 290, pitchK: 22, pitchD: 5.6, yawK: 11, yawD: 3.8, tv: true },
     engine: { thrustMil: 232000, thrustAB: 316000, spool: 1.5, lapse: 0.0, twin: true },
     inertia: [250000, 380000, 85000],
     gun: { name: 'M61A2 20 mm', rpm: 6000, box: 160, boxes: 3, vel: 1050, dmg: 34, spread: 0.0013, reload: 3.0 },
-    missile: { name: 'AIM-9X IR', lockRange: 7000, lockTime: 0.8, cone: 11 },
+    missile: { name: 'AIM-9X IR', lockRange: 7000, lockTime: 0.8, cone: 11, count: 6 },
     flares: 24,
     hp: { fuselage: 270, wingL: 145, wingR: 145, engine: 160, tail: 120 }, armor: 0.88,
     geo: {
@@ -226,7 +226,7 @@ export const AIRCRAFT = {
       gearNose: [0, -1.78, -6.3], gearMain: [1.6, -1.78, 1.05], wheelR: [0.3, 0.42],
       nozzles: [[-0.82, 0.08, 9.3, 0.55], [0.82, 0.08, 9.3, 0.55]],
       tips: [6.78, 0.12, 3.15], fin: [2.25, 2.85, 6.9], hook: [0, -0.68, 7.9],
-      missiles: [[-1.25, -0.42, -2.2], [1.25, -0.42, -2.2], [-0.55, -0.62, -0.4], [0.55, -0.62, -0.4], [0, -0.66, 0.9]],
+      missiles: [[-1.25, -0.42, -2.2], [1.25, -0.42, -2.2], [-0.55, -0.62, -0.4], [0.55, -0.62, -0.4], [-0.3, -0.66, 1.0], [0.3, -0.66, 1.0]],
     },
   },
   a10: {
@@ -234,9 +234,9 @@ export const AIRCRAFT = {
     pro: 'A flying tank: titanium armour, the toughest airframe here, the devastating GAU-8 30 mm cannon and tight low-speed turns.',
     con: 'By far the slowest top speed and climb. No afterburner, so it cannot run away from a fight.',
     mass: 19500, fuel: 4800, flowMil: 0.7, flowAB: 0.7,
-    aero: { S: 47, cd0: 0.04, k: 0.062, cdWave: 0.09, clA: 5.2, clMax: 1.75, alphaOver: 6, gMax: 7.3, gNeg: 3,
+    aero: { S: 47, cd0: 0.035, k: 0.062, cdWave: 0.09, clA: 5.2, clMax: 1.75, alphaOver: 6, gMax: 7.3, gNeg: 3,
       rollRate: 135, pitchK: 15, pitchD: 4.6, yawK: 9, yawD: 3.6 },
-    engine: { thrustMil: 81000, thrustAB: 81000, spool: 2.6, lapse: 0.6, twin: true, noAB: true },
+    engine: { thrustMil: 96000, thrustAB: 96000, spool: 2.3, lapse: 0.6, twin: true, noAB: true },
     inertia: [210000, 330000, 120000],
     gun: { name: 'GAU-8 Avenger 30 mm', rpm: 3900, box: 300, boxes: 3, vel: 1010, dmg: 52, spread: 0.0022, reload: 4.5 },
     missile: { name: 'AIM-9 IR', lockRange: 3600, lockTime: 1.1, cone: 8 },
@@ -254,6 +254,9 @@ export const AIRCRAFT = {
 };
 export const AIRCRAFT_ORDER = ['f22', 'f14', 'f18', 'f16', 'su27', 'a10'];
 
+// Player gun assist: with the gun cross inside the lead circle (this many radians of the firing solution, ~3.2 deg),
+// rounds fly along the solution, and they connect within this many metres of the target's hitbox
+export const GUN_ASSIST = { cone: 0.056, range: 1300, pad: 2.2 };
 export const MISSILE = {
   max: 5, burn: 2.6, accel: 260, maxSpeed: 900, maxG: 32, life: 14, fuse: 11, dmg: 900, blast: 24,
   gimbal: 50, // deg off-bore seeker limit
