@@ -234,23 +234,46 @@ export class HUD {
       const edge = this.projDir(_a.copy(fwd).applyAxisAngle(_b.set(1, 0, 0).applyQuaternion(fm.quat), ang), cam, { x: 0, y: 0 });
       if (edge) { const rr = Math.hypot(edge.x - bore.x, edge.y - bore.y); g.globalAlpha = p.lockState ? 1 : 0.45; g.setLineDash(p.lockState === 2 ? [] : [5 * s, 5 * s]); g.beginPath(); g.arc(bore.x, bore.y, rr, 0, 7); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; }
     }
-    // gun lead pipper on the nearest enemy in front
+    // gun lead pipper on the nearest enemy in front. It is a DIRECTION (like the gun cross), solved from the gun with the
+    // bullets' real ballistics, so putting the cross on it hits from any camera, cockpit or chase.
     const t = this._gunTarget(p, game);
     if (t) {
-      const dist = t.fm.pos.distanceTo(fm.pos), bv = p.def.gun.vel;
-      const tof = dist / (bv + Math.max(0, fm.vel.dot(_a.copy(t.fm.pos).sub(fm.pos).normalize())));
-      const lead = _b.copy(t.fm.pos).addScaledVector(t.fm.vel, tof).addScaledVector(fm.vel, -tof).add(_c.set(0, 0.5 * 9.81 * tof * tof, 0));
-      const lp = this.proj(lead, cam, { x: 0, y: 0 });
+      const sol = this.aimSolution(p, t), dist = t.fm.pos.distanceTo(fm.pos);
+      const lp = sol.tof < 2.2 ? this.projDir(sol.dir, cam, { x: 0, y: 0 }) : null;
       if (lp) {
         const inRange = dist < 1100;
         g.globalAlpha = inRange ? 1 : 0.5;
         g.beginPath(); g.arc(lp.x, lp.y, 10 * s, 0, 7); g.moveTo(lp.x + 2 * s, lp.y); g.arc(lp.x, lp.y, 2 * s, 0, 7); g.stroke();
         g.font = `bold ${Math.round(11 * s)}px "Share Tech Mono", monospace`; g.textAlign = 'center'; g.fillText(`${(dist / 1000).toFixed(1)}`, lp.x, lp.y + 24 * s);
+        // on target: the cross is close enough to the pipper that the burst will connect
+        const err = Math.acos(Math.min(1, fwd.dot(sol.dir)));
+        if (inRange && err < Math.max(0.004, (t.radius * 0.45) / Math.max(dist, 1))) { g.beginPath(); g.arc(lp.x, lp.y, 15 * s, 0, 7); g.stroke(); }
         g.globalAlpha = 1;
       }
     }
     g.shadowBlur = 0;
   }
+  // Where to point the nose to hit t with the gun: bullets leave at gun.vel plus the jet's own velocity, then slow with
+  // drag (dv/dt = -k v - g) exactly as weapons.js flies them. Returns the aim direction (world) and time of flight.
+  aimSolution(p, t) {
+    const fm = p.fm, bv = p.def.gun.vel, k = 0.22, gr = 9.81;
+    const gun = this._gunPos.set(...p.def.geo.gun).applyQuaternion(fm.quat).add(fm.pos).addScaledVector(p.fwd, 1.5);
+    const dir = this._aimDir, P = this._aimP;
+    let tof = t.fm.pos.distanceTo(gun) / bv;
+    for (let i = 0; i < 6; i++) {
+      P.copy(t.fm.pos).addScaledVector(t.fm.vel, tof);           // where the target will be
+      const f = (1 - Math.exp(-k * tof)) / k;
+      P.sub(gun); P.y += (gr / k) * (tof - f); P.divideScalar(f);  // launch velocity (world) that reaches it in tof
+      dir.copy(P).sub(fm.vel);                                     // minus the jet's own velocity = muzzle velocity
+      const need = dir.length(); dir.divideScalar(need);
+      tof = Math.min(4, tof * Math.pow(need / bv, 0.9));           // slower than the gun can fire it: allow more time
+    }
+    return { dir, tof };
+  }
+  leadDir(p, t) { return this.aimSolution(p, t).dir.clone(); } // (tests)
+  get _gunPos() { return this.__gp || (this.__gp = new V3()); }
+  get _aimDir() { return this.__ad || (this.__ad = new V3()); }
+  get _aimP() { return this.__ap || (this.__ap = new V3()); }
   _gunTarget(p, game) {
     let best = null, bs = 1e9;
     for (const a of game.aircraft) {
