@@ -24,7 +24,7 @@ function materials(team, id) {
   const camo = team === 'coast' && id !== 'a10' && !raptor;
   const map = raptor ? (team === 'coast' ? TEX.raptorC : TEX.raptor) : camo ? TEX.camo : TEX.panel;
   // the F-22's radar-absorbent coating has a faint metallic sheen
-  const skin = new THREE.MeshStandardMaterial({ color: p.base, map, normalMap: TEX.panelN, normalScale: new THREE.Vector2(0.6, 0.6), roughness: raptor ? 0.5 : 0.52, metalness: raptor ? 0.3 : 0.32, roughnessMap: TEX.panelR, envMapIntensity: 0.9 });
+  const skin = new THREE.MeshStandardMaterial({ color: p.base, map, normalMap: TEX.panelN, normalScale: new THREE.Vector2(0.6, 0.6), roughness: raptor ? 0.8 : 0.85, metalness: raptor ? 0.22 : 0.25, roughnessMap: TEX.panelR, envMapIntensity: 0.9 });
   const m = {
     skin,
     under: skin.clone(),
@@ -432,7 +432,8 @@ export function buildAircraft(id, team = 'navy', opts = {}) {
     for (const n of P.nozzles) {
       const u = n.userData;
       const hot = Math.max(0, (fm.rpm - 0.55) / 0.45);
-      u.inner.material.emissiveIntensity = 0.2 * Math.min(1, fm.rpm / 0.6) + hot * 1.2 + fm.ab * 6; // cold engine: no glow
+      // cold engine: no glow; a turbofan without afterburner (A-10) only warms faintly
+      u.inner.material.emissiveIntensity = (info.noAB ? 0.03 : 0.2) * Math.min(1, fm.rpm / 0.6) + hot * (info.noAB ? 0.05 : 1.2) + fm.ab * 6;
       u.flame.visible = fm.ab > 0.02;
       if (u.flame.visible) { const k = 0.5 + 0.5 * fm.ab; u.flame.scale.set(k, 0.6 + 0.6 * fm.ab + Math.random() * 0.06, k); }
     }

@@ -127,7 +127,7 @@ class Game {
     c.addPass(this.mainPass);
     this.ckPass = new RenderPass(this.ckScene, this.ckCam); this.ckPass.clear = false; this.ckPass.clearDepth = true;
     c.addPass(this.ckPass);
-    if (gfx.bloom) { this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.16, 0.25, 4.0); c.addPass(this.bloom); } else this.bloom = null;
+    if (gfx.bloom) { this.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.14, 0.22, 4.5); c.addPass(this.bloom); } else this.bloom = null;
     c.addPass(new OutputPass());
     if (gfx.fxaa) c.addPass(new FXAAPass());
   }

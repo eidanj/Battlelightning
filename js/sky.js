@@ -11,7 +11,10 @@ function patchSkyHaze(mat) {
   mat.uniforms.hazeAmt = { value: 1.0 };
   mat.fragmentShader = mat.fragmentShader
     .replace('uniform float time;', 'uniform float time;\nuniform vec3 hazeColor;\nuniform float hazeAmt;')
-    .replace('gl_FragColor = vec4( texColor, 1.0 );', `float hz = 1.0 - smoothstep( -0.015, 0.16, direction.y );
+    .replace('gl_FragColor = vec4( texColor, 1.0 );', `// the sun disc comes out of the scattering model tens of thousands of times brighter than the sky;
+			// cap it (and the halo) so it reads as a bright white disc instead of blooming over half the screen
+			texColor = min( texColor, vec3( 3.2 ) );
+			float hz = 1.0 - smoothstep( -0.015, 0.16, direction.y );
 			texColor = mix( texColor, hazeColor, hz * hz * hazeAmt );
 			if ( direction.y < 0.0 ) texColor = mix( hazeColor, hazeColor * vec3( 0.55, 0.62, 0.7 ), smoothstep( 0.0, -0.35, direction.y ) );
 			gl_FragColor = vec4( texColor, 1.0 );`);
@@ -60,7 +63,7 @@ export class Atmosphere {
     const el = T.elev * DEG, az = T.azim * DEG;
     this.sunDir.set(Math.cos(el) * Math.sin(az), Math.sin(el), -Math.cos(el) * Math.cos(az)).normalize();
     const u = this.sky.material.uniforms;
-    u.turbidity.value = T.turbidity; u.rayleigh.value = T.rayleigh; u.mieCoefficient.value = 0.004; u.mieDirectionalG.value = 0.82;
+    u.turbidity.value = T.turbidity; u.rayleigh.value = T.rayleigh; u.mieCoefficient.value = 0.0022; u.mieDirectionalG.value = 0.8; // less haze glare around the sun
     u.sunPosition.value.copy(this.sunDir).multiplyScalar(450000);
     u.cloudCoverage.value = 0.32; u.cloudDensity.value = 0.32; u.cloudScale.value = 0.00012; u.cloudElevation.value = 0.42;
     this.sun.color.set(T.sunColor);

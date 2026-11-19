@@ -116,8 +116,9 @@ void main() {
   // sun glitter
   vec3 H = normalize(uSunDir + V);
   float nh = max(dot(N, H), 0.0);
-  float spec = pow(nh, 900.0) * 60.0 + pow(nh, 120.0) * 1.2;
+  float spec = pow(nh, 900.0) * 16.0 + pow(nh, 160.0) * 0.5; // sun glitter on the waves, kept below the bloom blow-out level
   col += uSunColor * spec * uSunI * (1.0 - foam) * smoothstep(-0.02, 0.08, uSunDir.y);
+  col = min(col, vec3(4.5));
   // aerial perspective
   float fogF = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
   col = mix(col, uFogColor, fogF);

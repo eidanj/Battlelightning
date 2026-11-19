@@ -110,7 +110,7 @@ export function buildTextures(q = 1) {
     const s = 1024, r = makeRng(42);
     const { c, g } = makeCanvas(s);
     g.fillStyle = '#e8e8e8'; g.fillRect(0, 0, s, s);
-    const { c: cr, g: gr } = makeCanvas(s); // roughness (red channel)
+    const { c: cr, g: gr } = makeCanvas(s); // roughness: three.js reads the GREEN channel, so draw it grey
     gr.fillStyle = 'rgb(150,150,150)'; gr.fillRect(0, 0, s, s);
     // panels in rows, each its own paint batch: visible tone and gloss differences
     let y = 0;
@@ -120,7 +120,7 @@ export function buildTextures(q = 1) {
       while (x < s) {
         const w = 80 + r() * 230, tone = 234 + (r() - 0.5) * 18, warm = (r() - 0.5) * 4;
         g.fillStyle = `rgb(${tone + warm},${tone},${tone - warm})`; g.fillRect(x, y, w, hgt);
-        gr.fillStyle = `rgb(${130 + (r() - 0.5) * 80},0,0)`; gr.fillRect(x, y, w, hgt);
+        { const rv = Math.round(130 + (r() - 0.5) * 80); gr.fillStyle = `rgb(${rv},${rv},${rv})`; } gr.fillRect(x, y, w, hgt);
         lines.push([x, y, w, hgt]); x += w;
       }
       y += hgt;
@@ -131,7 +131,7 @@ export function buildTextures(q = 1) {
       const pw = w0 * (0.25 + r() * 0.6), ph = h0 * (0.25 + r() * 0.6), px = x0 + r() * (w0 - pw), py = y0 + r() * (h0 - ph);
       const t = 220 + r() * 30;
       g.fillStyle = `rgba(${t},${t + 2},${t + 4},0.32)`; g.fillRect(px, py, pw, ph);
-      gr.fillStyle = 'rgba(95,0,0,0.6)'; gr.fillRect(px, py, pw, ph); // newer paint is glossier
+      gr.fillStyle = 'rgba(95,95,95,0.6)'; gr.fillRect(px, py, pw, ph); // newer paint is glossier
     }
     // grime collects along the seams: soft dark halo first, the crisp seam goes into the height map below
     g.strokeStyle = 'rgba(60,60,60,0.10)'; g.lineWidth = 9;
@@ -145,7 +145,7 @@ export function buildTextures(q = 1) {
       const a0 = 0.03 + r() * 0.09;
       grd.addColorStop(0, `rgba(70,66,60,${a0})`); grd.addColorStop(1, 'rgba(70,66,60,0)');
       g.fillStyle = grd; g.fillRect(sx, sy, wd, len);
-      gr.fillStyle = `rgba(200,0,0,${a0 * 1.5})`; gr.fillRect(sx, sy, wd, len); // grime is matte
+      gr.fillStyle = `rgba(200,200,200,${a0 * 1.5})`; gr.fillRect(sx, sy, wd, len); // grime is matte
     }
     // small stencils / access hatches: light and dark rectangles
     for (let i = 0; i < 70; i++) {
